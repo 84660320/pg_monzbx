@@ -1,4 +1,6 @@
 # pg_monzbx
-postgresql  monitor
+use zabbix for monitor postgresql
 
-set pg.conf in zabbix zabbix_agentd.conf.d 
+########zabbix_agentd.conf
+
+Include=/opt/zabbix/etc/zabbix_agentd.conf.d/pg.conf
