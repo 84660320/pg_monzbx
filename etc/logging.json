@@ -1,0 +1,32 @@
+{
+    "version": 1,
+    "handlers": {
+        "console_streamHandler": {
+            "class": "logging.StreamHandler",
+            "level": "DEBUG",
+            "formatter": "myFormatter",
+            "stream": "ext://sys.stdout"
+        },
+        "console_fileHandler": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "level": "DEBUG",
+            "formatter": "myFormatter",
+            "filename": "log/zabbix_extension.log",
+            "mode": "a+",
+            "maxBytes": 524288000,
+            "backupCount": 20,
+            "encoding":"utf8"
+        }
+    },
+    "formatters": {
+        "myFormatter": {
+            "format": "%(asctime)s %(name)s  %(levelname)s %(process)d %(filename)s %(lineno)d %(funcName)s %(message)s"
+        }
+    },
+    "loggers": {
+        "default": {
+            "level": "DEBUG",
+            "handlers": ["console_fileHandler"]
+        }
+    }
+}

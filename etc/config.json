@@ -1,0 +1,10 @@
+{
+    "unix_socket_directory":"/tmp",
+    "slow_query_sec": 18,
+    "stream_slave_sec": 1800,
+    "lock_timeout": 5,
+    "db_black_list":"['template1', 'template0', 'pgbouncer', 'postgres']",
+    "pgbuser":"postgres",
+    "pgbpassword":"postgres"
+}
+
