@@ -1,0 +1,2206 @@
+2019-05-27 12:01:37,190 default  INFO 11715 pg_monzbx.py 24 run parameter discover = True sendtrap = False
+2019-05-27 12:01:37,191 default  INFO 11715 pg_monzbx.py 43 run discover start
+2019-05-27 12:01:37,203 default  INFO 11715 database.py 42 dbconnect <connection object at 0x7fdc8aadfe10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:01:37,204 default  DEBUG 11715 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:01:37,208 default  DEBUG 11715 database.py 64 execute_sql results: (False,)
+2019-05-27 12:01:37,208 default  DEBUG 11715 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:01:37,219 default  DEBUG 11715 database.py 64 execute_sql results: []
+2019-05-27 12:01:37,235 default  INFO 11715 database.py 42 dbconnect <connection object at 0x7fdc8aadfe10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:01:37,235 default  DEBUG 11715 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:01:37,248 default  DEBUG 11715 database.py 64 execute_sql results: (False,)
+2019-05-27 12:01:37,248 default  DEBUG 11715 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:01:37,258 default  DEBUG 11715 database.py 64 execute_sql results: []
+2019-05-27 12:01:37,258 default  INFO 11715 pg_monzbx.py 52 run discover result: {'data': [{'{#PG.PORT}': u'5433', '{#PG.MON}': 1}, {'{#PG.PORT}': u'5432', '{#PG.MON}': 1}]}
+2019-05-27 12:01:42,556 default  INFO 11720 pg_monzbx.py 24 run parameter discover = False sendtrap = True
+2019-05-27 12:01:42,556 default  INFO 11720 pg_monzbx.py 28 run sendtrap start
+2019-05-27 12:01:42,556 default  DEBUG 11720 postgresql.py 145 info find postgresql listen port 5433 unix_socket_file /tmp/.s.PGSQL.5433.lock
+2019-05-27 12:01:42,559 default  INFO 11720 database.py 42 dbconnect <connection object at 0x7fc23e3bfe10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:01:42,559 default  DEBUG 11720 database.py 57 execute_sql select replace(setting, '.', ', ') from pg_settings where name = 'server_version';
+2019-05-27 12:01:42,564 default  DEBUG 11720 database.py 64 execute_sql results: ('11, 3',)
+2019-05-27 12:01:42,574 default  DEBUG 11720 database.py 57 execute_sql select
+    pid,
+    query,
+  state,
+  datname,
+    usename,
+    now() - backend_start as backend_conn_time,
+    now() - query_start as query_run_time,
+    client_addr,
+  'NULL' as waiting,
+    wait_event_type,
+    wait_event,application_name
+from
+    pg_stat_activity
+where
+    client_port is not null
+    and query !~* '^vacuum'
+    and query !~* '^analyze|^analyse'
+    and query !~* 'pg_start_backup|pg_stop_backup'
+    and application_name <> 'pg_reorg'
+    and ( application_name = 'psql' and query ~* '^COPY' ) = false
+    and ( application_name = 'pg_dump' and query ~* '^COPY' and usename = 'pgdba' ) = false
+    and query !~* 'INDEX +CONCURRENTLY'
+    and query !~* 'pg_sleep'
+    and query !~* 'refresh +materialized +view'and state <> 'idle'and now() - query_start > '18 sec'
+2019-05-27 12:01:42,587 default  DEBUG 11720 database.py 64 execute_sql results: []
+2019-05-27 12:01:42,593 default  DEBUG 11720 database.py 57 execute_sql 
+select
+      wait.pid,
+      wait.state,
+      (select string_agg(distinct transactionid::text, ',') from pg_locks where pid = wait.pid and locktype = 'transactionid' and transactionid::text <> wait.transactionid::text),
+      wait.virtualxid,
+      wait.locktype,
+      wait.usename,
+      wait.application_name,
+      wait.client_addr,
+      wait.waiting,
+      wait.wait_event_type,
+      wait.wait_event,
+      wait.query_start,
+      extract(epoch from now() - wait.query_start) as wait_query_run_time,
+      wait.query,
+
+      granted.pid              as waitfor_pid,
+      granted.state            as waitfor_state,
+      granted.transactionid    as waitfor_transactionid,
+      granted.virtualxid       as waitfor_virtualxid,
+      granted.locktype         as waitfor_locktype,
+      granted.usename          as waitfor_usename,
+      granted.client_addr      as waitfor_client_addr,
+      granted.application_name as waitfor_application_name,
+      granted.waiting          as waitfor_waiting,
+      granted.wait_event_type  as waitfor_wait_event_type,
+      granted.wait_event       as waitfor_wait_event,
+      granted.query_start      as waitfor_query_start,
+      extract(epoch from now() - granted.query_start) as waitfor_query_run_time,
+      granted.query            as waitfor_query
+from
+    (select
+       a.pid,
+          a.state,
+       b.transactionid,
+          b.virtualxid,
+          b.locktype,
+          b.relation,
+          b.page,
+          b.tuple,
+          a.usename,
+          a.application_name,
+          a.client_addr,
+       'NULL' as waiting,
+          a.wait_event_type,
+          a.wait_event,
+       a.query_start,
+       a.query
+       from
+          pg_stat_activity a,
+          pg_locks b
+     where
+       a.pid = b.pid
+       and granted = 'f'
+       and a.wait_event_type is not null
+       ) wait
+join
+    (select
+       a.pid,
+          b.state,
+       a.transactionid,
+          a.virtualxid,
+          a.locktype,
+          a.relation,
+          a.page,
+          a.tuple,
+          b.usename,
+          b.application_name,
+          b.client_addr,
+       'NULL' as waiting,
+          b.wait_event_type,
+          b.wait_event,
+       b.query_start,
+       b.query
+       from
+        pg_locks a,
+        pg_stat_activity b
+    where
+       a.pid = b.pid
+       and a.granted = 't'
+    ) granted
+on (
+    ( wait.locktype = 'transactionid'
+    and granted.locktype = 'transactionid'
+    and wait.transactionid = granted.transactionid )
+    or
+    ( wait.locktype = 'relation'
+    and granted.locktype = 'relation'
+    and wait.relation = granted.relation
+    )
+    or
+    ( wait.locktype = 'virtualxid'
+    and granted.locktype = 'virtualxid'
+    and wait.virtualxid = granted.virtualxid )
+    or
+    ( wait.locktype = 'tuple'
+    and granted.locktype = 'tuple'
+    and wait.relation = granted.relation
+    and wait.page = granted.page
+    and wait.tuple = granted.tuple )
+)
+where  wait.query !~ '^autovacuum'
+and granted.query !~ '^autovacuum'
+and (wait.query ~* '^VACUUM' and wait.usename = 'pgdba') = false
+order by
+granted.query_start
+2019-05-27 12:01:42,606 default  DEBUG 11720 database.py 64 execute_sql results: []
+2019-05-27 12:01:42,606 default  DEBUG 11720 database.py 57 execute_sql select pg_is_in_recovery();
+2019-05-27 12:01:42,607 default  DEBUG 11720 database.py 64 execute_sql results: (False,)
+2019-05-27 12:01:42,608 default  DEBUG 11720 database.py 57 execute_sql 
+SELECT
+    application_name,
+    pg_wal_lsn_diff(pg_current_wal_lsn(), replay_lsn) as diff
+    FROM 
+    pg_stat_replication
+2019-05-27 12:01:42,610 default  DEBUG 11720 database.py 64 execute_sql results: []
+2019-05-27 12:01:42,610 default  DEBUG 11720 database.py 57 execute_sql select setting from pg_settings where name = 'max_connections';
+2019-05-27 12:01:42,612 default  DEBUG 11720 database.py 64 execute_sql results: ('256',)
+2019-05-27 12:01:42,612 default  DEBUG 11720 database.py 57 execute_sql select count(1) from pg_stat_activity;
+2019-05-27 12:01:42,614 default  DEBUG 11720 database.py 64 execute_sql results: (29L,)
+2019-05-27 12:01:42,614 default  DEBUG 11720 postgresql.py 145 info find postgresql listen port 5432 unix_socket_file /tmp/.s.PGSQL.5432.lock
+2019-05-27 12:01:42,617 default  INFO 11720 database.py 42 dbconnect <connection object at 0x7fc23e3bfe10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:01:42,617 default  DEBUG 11720 database.py 57 execute_sql select replace(setting, '.', ', ') from pg_settings where name = 'server_version';
+2019-05-27 12:01:42,620 default  DEBUG 11720 database.py 64 execute_sql results: ('12devel',)
+2019-05-27 12:01:42,625 default  DEBUG 11720 database.py 57 execute_sql select
+    pid,
+    query,
+  state,
+  datname,
+    usename,
+    now() - backend_start as backend_conn_time,
+    now() - query_start as query_run_time,
+    client_addr,
+  'NULL' as waiting,
+    wait_event_type,
+    wait_event,application_name
+from
+    pg_stat_activity
+where
+    client_port is not null
+    and query !~* '^vacuum'
+    and query !~* '^analyze|^analyse'
+    and query !~* 'pg_start_backup|pg_stop_backup'
+    and application_name <> 'pg_reorg'
+    and ( application_name = 'psql' and query ~* '^COPY' ) = false
+    and ( application_name = 'pg_dump' and query ~* '^COPY' and usename = 'pgdba' ) = false
+    and query !~* 'INDEX +CONCURRENTLY'
+    and query !~* 'pg_sleep'
+    and query !~* 'refresh +materialized +view'and state <> 'idle'and now() - query_start > '18 sec'
+2019-05-27 12:01:42,632 default  DEBUG 11720 database.py 64 execute_sql results: []
+2019-05-27 12:01:42,638 default  DEBUG 11720 database.py 57 execute_sql 
+select
+      wait.pid,
+      wait.state,
+      (select string_agg(distinct transactionid::text, ',') from pg_locks where pid = wait.pid and locktype = 'transactionid' and transactionid::text <> wait.transactionid::text),
+      wait.virtualxid,
+      wait.locktype,
+      wait.usename,
+      wait.application_name,
+      wait.client_addr,
+      wait.waiting,
+      wait.wait_event_type,
+      wait.wait_event,
+      wait.query_start,
+      extract(epoch from now() - wait.query_start) as wait_query_run_time,
+      wait.query,
+
+      granted.pid              as waitfor_pid,
+      granted.state            as waitfor_state,
+      granted.transactionid    as waitfor_transactionid,
+      granted.virtualxid       as waitfor_virtualxid,
+      granted.locktype         as waitfor_locktype,
+      granted.usename          as waitfor_usename,
+      granted.client_addr      as waitfor_client_addr,
+      granted.application_name as waitfor_application_name,
+      granted.waiting          as waitfor_waiting,
+      granted.wait_event_type  as waitfor_wait_event_type,
+      granted.wait_event       as waitfor_wait_event,
+      granted.query_start      as waitfor_query_start,
+      extract(epoch from now() - granted.query_start) as waitfor_query_run_time,
+      granted.query            as waitfor_query
+from
+    (select
+       a.pid,
+          a.state,
+       b.transactionid,
+          b.virtualxid,
+          b.locktype,
+          b.relation,
+          b.page,
+          b.tuple,
+          a.usename,
+          a.application_name,
+          a.client_addr,
+       'NULL' as waiting,
+          a.wait_event_type,
+          a.wait_event,
+       a.query_start,
+       a.query
+       from
+          pg_stat_activity a,
+          pg_locks b
+     where
+       a.pid = b.pid
+       and granted = 'f'
+       and a.wait_event_type is not null
+       ) wait
+join
+    (select
+       a.pid,
+          b.state,
+       a.transactionid,
+          a.virtualxid,
+          a.locktype,
+          a.relation,
+          a.page,
+          a.tuple,
+          b.usename,
+          b.application_name,
+          b.client_addr,
+       'NULL' as waiting,
+          b.wait_event_type,
+          b.wait_event,
+       b.query_start,
+       b.query
+       from
+        pg_locks a,
+        pg_stat_activity b
+    where
+       a.pid = b.pid
+       and a.granted = 't'
+    ) granted
+on (
+    ( wait.locktype = 'transactionid'
+    and granted.locktype = 'transactionid'
+    and wait.transactionid = granted.transactionid )
+    or
+    ( wait.locktype = 'relation'
+    and granted.locktype = 'relation'
+    and wait.relation = granted.relation
+    )
+    or
+    ( wait.locktype = 'virtualxid'
+    and granted.locktype = 'virtualxid'
+    and wait.virtualxid = granted.virtualxid )
+    or
+    ( wait.locktype = 'tuple'
+    and granted.locktype = 'tuple'
+    and wait.relation = granted.relation
+    and wait.page = granted.page
+    and wait.tuple = granted.tuple )
+)
+where  wait.query !~ '^autovacuum'
+and granted.query !~ '^autovacuum'
+and (wait.query ~* '^VACUUM' and wait.usename = 'pgdba') = false
+order by
+granted.query_start
+2019-05-27 12:01:42,647 default  DEBUG 11720 database.py 64 execute_sql results: []
+2019-05-27 12:01:42,647 default  DEBUG 11720 database.py 57 execute_sql select pg_is_in_recovery();
+2019-05-27 12:01:42,647 default  DEBUG 11720 database.py 64 execute_sql results: (False,)
+2019-05-27 12:01:42,649 default  DEBUG 11720 database.py 57 execute_sql 
+SELECT
+    application_name,
+    pg_wal_lsn_diff(pg_current_wal_lsn(), replay_lsn) as diff
+    FROM 
+    pg_stat_replication
+2019-05-27 12:01:42,650 default  DEBUG 11720 database.py 64 execute_sql results: []
+2019-05-27 12:01:42,651 default  DEBUG 11720 database.py 57 execute_sql select setting from pg_settings where name = 'max_connections';
+2019-05-27 12:01:42,652 default  DEBUG 11720 database.py 64 execute_sql results: ('100',)
+2019-05-27 12:01:42,652 default  DEBUG 11720 database.py 57 execute_sql select count(1) from pg_stat_activity;
+2019-05-27 12:01:42,658 default  DEBUG 11720 database.py 64 execute_sql results: (6L,)
+2019-05-27 12:01:42,661 default  INFO 11720 pg_monzbx.py 35 run sendtrap result: {'pg.[5433.locks.detail]': '', 'pg.[5433.master.slave_detail]': '', 'pg.[5432.conn.cnt]': 6, 'pg.[5433.conn.max_cnt]': 256, 'pg.[5432.master.slave_detail]': '', 'pg.[5432.slow_query.cnt]': 0, 'pg.[5433.slow_query.cnt]': 0, 'pg.[5432.conn.max_cnt]': 100, 'pg.[5433.locks.cnt]': 0, 'pg.[5433.master.slave_cnt]': 0, 'pg.[5433.slow_query.detail]': '', 'pg.[5432.locks.cnt]': 0, 'pg.[5432.locks.detail]': '', 'pg.[5433.conn.cnt]': 29, 'pg.[5432.master.slave_cnt]': 0, 'pg.[5432.slow_query.detail]': ''}
+2019-05-27 12:01:42,662 default  INFO 11720 sendproto.py 32 send send zabbix data: {'data': [{'host': 'localhost.domain', 'value': '', 'key': 'pg.[5433.locks.detail]'}, {'host': 'localhost.domain', 'value': '', 'key': 'pg.[5433.master.slave_detail]'}, {'host': 'localhost.domain', 'value': 6, 'key': 'pg.[5432.conn.cnt]'}, {'host': 'localhost.domain', 'value': 256, 'key': 'pg.[5433.conn.max_cnt]'}, {'host': 'localhost.domain', 'value': '', 'key': 'pg.[5432.master.slave_detail]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5432.slow_query.cnt]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5433.slow_query.cnt]'}, {'host': 'localhost.domain', 'value': 100, 'key': 'pg.[5432.conn.max_cnt]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5433.locks.cnt]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5433.master.slave_cnt]'}, {'host': 'localhost.domain', 'value': '', 'key': 'pg.[5433.slow_query.detail]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5432.locks.cnt]'}, {'host': 'localhost.domain', 'value': '', 'key': 'pg.[5432.locks.detail]'}, {'host': 'localhost.domain', 'value': 29, 'key': 'pg.[5433.conn.cnt]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5432.master.slave_cnt]'}, {'host': 'localhost.domain', 'value': '', 'key': 'pg.[5432.slow_query.detail]'}], 'request': 'sender data'} 
+2019-05-27 12:01:42,665 default  INFO 11720 pg_monzbx.py 39 run send status: {u'info': u'processed: 0; failed: 16; total: 16; seconds spent: 0.000728', u'response': u'success'}
+2019-05-27 12:05:13,823 default  INFO 12286 pg_monzbx.py 24 run parameter discover = False sendtrap = True
+2019-05-27 12:05:13,824 default  INFO 12286 pg_monzbx.py 28 run sendtrap start
+2019-05-27 12:05:13,824 default  DEBUG 12286 postgresql.py 145 info find postgresql listen port 5433 unix_socket_file /tmp/.s.PGSQL.5433.lock
+2019-05-27 12:05:13,826 default  INFO 12286 database.py 42 dbconnect <connection object at 0x7f8c07c44e10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:05:13,826 default  DEBUG 12286 database.py 57 execute_sql select replace(setting, '.', ', ') from pg_settings where name = 'server_version';
+2019-05-27 12:05:13,829 default  DEBUG 12286 database.py 64 execute_sql results: ('11, 3',)
+2019-05-27 12:05:13,834 default  DEBUG 12286 database.py 57 execute_sql select
+    pid,
+    query,
+  state,
+  datname,
+    usename,
+    now() - backend_start as backend_conn_time,
+    now() - query_start as query_run_time,
+    client_addr,
+  'NULL' as waiting,
+    wait_event_type,
+    wait_event,application_name
+from
+    pg_stat_activity
+where
+    client_port is not null
+    and query !~* '^vacuum'
+    and query !~* '^analyze|^analyse'
+    and query !~* 'pg_start_backup|pg_stop_backup'
+    and application_name <> 'pg_reorg'
+    and ( application_name = 'psql' and query ~* '^COPY' ) = false
+    and ( application_name = 'pg_dump' and query ~* '^COPY' and usename = 'pgdba' ) = false
+    and query !~* 'INDEX +CONCURRENTLY'
+    and query !~* 'pg_sleep'
+    and query !~* 'refresh +materialized +view'and state <> 'idle'and now() - query_start > '18 sec'
+2019-05-27 12:05:13,841 default  DEBUG 12286 database.py 64 execute_sql results: []
+2019-05-27 12:05:13,847 default  DEBUG 12286 database.py 57 execute_sql 
+select
+      wait.pid,
+      wait.state,
+      (select string_agg(distinct transactionid::text, ',') from pg_locks where pid = wait.pid and locktype = 'transactionid' and transactionid::text <> wait.transactionid::text),
+      wait.virtualxid,
+      wait.locktype,
+      wait.usename,
+      wait.application_name,
+      wait.client_addr,
+      wait.waiting,
+      wait.wait_event_type,
+      wait.wait_event,
+      wait.query_start,
+      extract(epoch from now() - wait.query_start) as wait_query_run_time,
+      wait.query,
+
+      granted.pid              as waitfor_pid,
+      granted.state            as waitfor_state,
+      granted.transactionid    as waitfor_transactionid,
+      granted.virtualxid       as waitfor_virtualxid,
+      granted.locktype         as waitfor_locktype,
+      granted.usename          as waitfor_usename,
+      granted.client_addr      as waitfor_client_addr,
+      granted.application_name as waitfor_application_name,
+      granted.waiting          as waitfor_waiting,
+      granted.wait_event_type  as waitfor_wait_event_type,
+      granted.wait_event       as waitfor_wait_event,
+      granted.query_start      as waitfor_query_start,
+      extract(epoch from now() - granted.query_start) as waitfor_query_run_time,
+      granted.query            as waitfor_query
+from
+    (select
+       a.pid,
+          a.state,
+       b.transactionid,
+          b.virtualxid,
+          b.locktype,
+          b.relation,
+          b.page,
+          b.tuple,
+          a.usename,
+          a.application_name,
+          a.client_addr,
+       'NULL' as waiting,
+          a.wait_event_type,
+          a.wait_event,
+       a.query_start,
+       a.query
+       from
+          pg_stat_activity a,
+          pg_locks b
+     where
+       a.pid = b.pid
+       and granted = 'f'
+       and a.wait_event_type is not null
+       ) wait
+join
+    (select
+       a.pid,
+          b.state,
+       a.transactionid,
+          a.virtualxid,
+          a.locktype,
+          a.relation,
+          a.page,
+          a.tuple,
+          b.usename,
+          b.application_name,
+          b.client_addr,
+       'NULL' as waiting,
+          b.wait_event_type,
+          b.wait_event,
+       b.query_start,
+       b.query
+       from
+        pg_locks a,
+        pg_stat_activity b
+    where
+       a.pid = b.pid
+       and a.granted = 't'
+    ) granted
+on (
+    ( wait.locktype = 'transactionid'
+    and granted.locktype = 'transactionid'
+    and wait.transactionid = granted.transactionid )
+    or
+    ( wait.locktype = 'relation'
+    and granted.locktype = 'relation'
+    and wait.relation = granted.relation
+    )
+    or
+    ( wait.locktype = 'virtualxid'
+    and granted.locktype = 'virtualxid'
+    and wait.virtualxid = granted.virtualxid )
+    or
+    ( wait.locktype = 'tuple'
+    and granted.locktype = 'tuple'
+    and wait.relation = granted.relation
+    and wait.page = granted.page
+    and wait.tuple = granted.tuple )
+)
+where  wait.query !~ '^autovacuum'
+and granted.query !~ '^autovacuum'
+and (wait.query ~* '^VACUUM' and wait.usename = 'pgdba') = false
+order by
+granted.query_start
+2019-05-27 12:05:13,857 default  DEBUG 12286 database.py 64 execute_sql results: []
+2019-05-27 12:05:13,857 default  DEBUG 12286 database.py 57 execute_sql select pg_is_in_recovery();
+2019-05-27 12:05:13,857 default  DEBUG 12286 database.py 64 execute_sql results: (False,)
+2019-05-27 12:05:13,859 default  DEBUG 12286 database.py 57 execute_sql 
+SELECT
+    application_name,
+    pg_wal_lsn_diff(pg_current_wal_lsn(), replay_lsn) as diff
+    FROM 
+    pg_stat_replication
+2019-05-27 12:05:13,861 default  DEBUG 12286 database.py 64 execute_sql results: []
+2019-05-27 12:05:13,861 default  DEBUG 12286 database.py 57 execute_sql select setting from pg_settings where name = 'max_connections';
+2019-05-27 12:05:13,862 default  DEBUG 12286 database.py 64 execute_sql results: ('256',)
+2019-05-27 12:05:13,863 default  DEBUG 12286 database.py 57 execute_sql select count(1) from pg_stat_activity;
+2019-05-27 12:05:13,864 default  DEBUG 12286 database.py 64 execute_sql results: (29L,)
+2019-05-27 12:05:13,864 default  DEBUG 12286 postgresql.py 145 info find postgresql listen port 5432 unix_socket_file /tmp/.s.PGSQL.5432.lock
+2019-05-27 12:05:13,867 default  INFO 12286 database.py 42 dbconnect <connection object at 0x7f8c07c44e10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:05:13,867 default  DEBUG 12286 database.py 57 execute_sql select replace(setting, '.', ', ') from pg_settings where name = 'server_version';
+2019-05-27 12:05:13,869 default  DEBUG 12286 database.py 64 execute_sql results: ('12devel',)
+2019-05-27 12:05:13,874 default  DEBUG 12286 database.py 57 execute_sql select
+    pid,
+    query,
+  state,
+  datname,
+    usename,
+    now() - backend_start as backend_conn_time,
+    now() - query_start as query_run_time,
+    client_addr,
+  'NULL' as waiting,
+    wait_event_type,
+    wait_event,application_name
+from
+    pg_stat_activity
+where
+    client_port is not null
+    and query !~* '^vacuum'
+    and query !~* '^analyze|^analyse'
+    and query !~* 'pg_start_backup|pg_stop_backup'
+    and application_name <> 'pg_reorg'
+    and ( application_name = 'psql' and query ~* '^COPY' ) = false
+    and ( application_name = 'pg_dump' and query ~* '^COPY' and usename = 'pgdba' ) = false
+    and query !~* 'INDEX +CONCURRENTLY'
+    and query !~* 'pg_sleep'
+    and query !~* 'refresh +materialized +view'and state <> 'idle'and now() - query_start > '18 sec'
+2019-05-27 12:05:13,878 default  DEBUG 12286 database.py 64 execute_sql results: []
+2019-05-27 12:05:13,883 default  DEBUG 12286 database.py 57 execute_sql 
+select
+      wait.pid,
+      wait.state,
+      (select string_agg(distinct transactionid::text, ',') from pg_locks where pid = wait.pid and locktype = 'transactionid' and transactionid::text <> wait.transactionid::text),
+      wait.virtualxid,
+      wait.locktype,
+      wait.usename,
+      wait.application_name,
+      wait.client_addr,
+      wait.waiting,
+      wait.wait_event_type,
+      wait.wait_event,
+      wait.query_start,
+      extract(epoch from now() - wait.query_start) as wait_query_run_time,
+      wait.query,
+
+      granted.pid              as waitfor_pid,
+      granted.state            as waitfor_state,
+      granted.transactionid    as waitfor_transactionid,
+      granted.virtualxid       as waitfor_virtualxid,
+      granted.locktype         as waitfor_locktype,
+      granted.usename          as waitfor_usename,
+      granted.client_addr      as waitfor_client_addr,
+      granted.application_name as waitfor_application_name,
+      granted.waiting          as waitfor_waiting,
+      granted.wait_event_type  as waitfor_wait_event_type,
+      granted.wait_event       as waitfor_wait_event,
+      granted.query_start      as waitfor_query_start,
+      extract(epoch from now() - granted.query_start) as waitfor_query_run_time,
+      granted.query            as waitfor_query
+from
+    (select
+       a.pid,
+          a.state,
+       b.transactionid,
+          b.virtualxid,
+          b.locktype,
+          b.relation,
+          b.page,
+          b.tuple,
+          a.usename,
+          a.application_name,
+          a.client_addr,
+       'NULL' as waiting,
+          a.wait_event_type,
+          a.wait_event,
+       a.query_start,
+       a.query
+       from
+          pg_stat_activity a,
+          pg_locks b
+     where
+       a.pid = b.pid
+       and granted = 'f'
+       and a.wait_event_type is not null
+       ) wait
+join
+    (select
+       a.pid,
+          b.state,
+       a.transactionid,
+          a.virtualxid,
+          a.locktype,
+          a.relation,
+          a.page,
+          a.tuple,
+          b.usename,
+          b.application_name,
+          b.client_addr,
+       'NULL' as waiting,
+          b.wait_event_type,
+          b.wait_event,
+       b.query_start,
+       b.query
+       from
+        pg_locks a,
+        pg_stat_activity b
+    where
+       a.pid = b.pid
+       and a.granted = 't'
+    ) granted
+on (
+    ( wait.locktype = 'transactionid'
+    and granted.locktype = 'transactionid'
+    and wait.transactionid = granted.transactionid )
+    or
+    ( wait.locktype = 'relation'
+    and granted.locktype = 'relation'
+    and wait.relation = granted.relation
+    )
+    or
+    ( wait.locktype = 'virtualxid'
+    and granted.locktype = 'virtualxid'
+    and wait.virtualxid = granted.virtualxid )
+    or
+    ( wait.locktype = 'tuple'
+    and granted.locktype = 'tuple'
+    and wait.relation = granted.relation
+    and wait.page = granted.page
+    and wait.tuple = granted.tuple )
+)
+where  wait.query !~ '^autovacuum'
+and granted.query !~ '^autovacuum'
+and (wait.query ~* '^VACUUM' and wait.usename = 'pgdba') = false
+order by
+granted.query_start
+2019-05-27 12:05:13,890 default  DEBUG 12286 database.py 64 execute_sql results: []
+2019-05-27 12:05:13,890 default  DEBUG 12286 database.py 57 execute_sql select pg_is_in_recovery();
+2019-05-27 12:05:13,890 default  DEBUG 12286 database.py 64 execute_sql results: (False,)
+2019-05-27 12:05:13,891 default  DEBUG 12286 database.py 57 execute_sql 
+SELECT
+    application_name,
+    pg_wal_lsn_diff(pg_current_wal_lsn(), replay_lsn) as diff
+    FROM 
+    pg_stat_replication
+2019-05-27 12:05:13,893 default  DEBUG 12286 database.py 64 execute_sql results: []
+2019-05-27 12:05:13,893 default  DEBUG 12286 database.py 57 execute_sql select setting from pg_settings where name = 'max_connections';
+2019-05-27 12:05:13,895 default  DEBUG 12286 database.py 64 execute_sql results: ('100',)
+2019-05-27 12:05:13,895 default  DEBUG 12286 database.py 57 execute_sql select count(1) from pg_stat_activity;
+2019-05-27 12:05:13,896 default  DEBUG 12286 database.py 64 execute_sql results: (6L,)
+2019-05-27 12:05:13,897 default  INFO 12286 pg_monzbx.py 35 run sendtrap result: {'pg.[5433.locks.detail]': '', 'pg.[5433.master.slave_detail]': '', 'pg.[5432.conn.cnt]': 6, 'pg.[5433.conn.max_cnt]': 256, 'pg.[5432.master.slave_detail]': '', 'pg.[5432.slow_query.cnt]': 0, 'pg.[5433.slow_query.cnt]': 0, 'pg.[5432.conn.max_cnt]': 100, 'pg.[5433.locks.cnt]': 0, 'pg.[5433.master.slave_cnt]': 0, 'pg.[5433.slow_query.detail]': '', 'pg.[5432.locks.cnt]': 0, 'pg.[5432.locks.detail]': '', 'pg.[5433.conn.cnt]': 29, 'pg.[5432.master.slave_cnt]': 0, 'pg.[5432.slow_query.detail]': ''}
+2019-05-27 12:05:13,897 default  INFO 12286 sendproto.py 32 send send zabbix data: {'data': [{'host': 'localhost.domain', 'value': '', 'key': 'pg.[5433.locks.detail]'}, {'host': 'localhost.domain', 'value': '', 'key': 'pg.[5433.master.slave_detail]'}, {'host': 'localhost.domain', 'value': 6, 'key': 'pg.[5432.conn.cnt]'}, {'host': 'localhost.domain', 'value': 256, 'key': 'pg.[5433.conn.max_cnt]'}, {'host': 'localhost.domain', 'value': '', 'key': 'pg.[5432.master.slave_detail]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5432.slow_query.cnt]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5433.slow_query.cnt]'}, {'host': 'localhost.domain', 'value': 100, 'key': 'pg.[5432.conn.max_cnt]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5433.locks.cnt]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5433.master.slave_cnt]'}, {'host': 'localhost.domain', 'value': '', 'key': 'pg.[5433.slow_query.detail]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5432.locks.cnt]'}, {'host': 'localhost.domain', 'value': '', 'key': 'pg.[5432.locks.detail]'}, {'host': 'localhost.domain', 'value': 29, 'key': 'pg.[5433.conn.cnt]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5432.master.slave_cnt]'}, {'host': 'localhost.domain', 'value': '', 'key': 'pg.[5432.slow_query.detail]'}], 'request': 'sender data'} 
+2019-05-27 12:05:13,897 default  INFO 12286 pg_monzbx.py 39 run send status: {u'info': u'processed: 0; failed: 16; total: 16; seconds spent: 0.000129', u'response': u'success'}
+2019-05-27 12:05:14,726 default  INFO 12290 pg_monzbx.py 24 run parameter discover = False sendtrap = True
+2019-05-27 12:05:14,726 default  INFO 12290 pg_monzbx.py 28 run sendtrap start
+2019-05-27 12:05:14,727 default  DEBUG 12290 postgresql.py 145 info find postgresql listen port 5433 unix_socket_file /tmp/.s.PGSQL.5433.lock
+2019-05-27 12:05:14,729 default  INFO 12290 database.py 42 dbconnect <connection object at 0x7f07962c9e10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:05:14,729 default  DEBUG 12290 database.py 57 execute_sql select replace(setting, '.', ', ') from pg_settings where name = 'server_version';
+2019-05-27 12:05:14,731 default  DEBUG 12290 database.py 64 execute_sql results: ('11, 3',)
+2019-05-27 12:05:14,737 default  DEBUG 12290 database.py 57 execute_sql select
+    pid,
+    query,
+  state,
+  datname,
+    usename,
+    now() - backend_start as backend_conn_time,
+    now() - query_start as query_run_time,
+    client_addr,
+  'NULL' as waiting,
+    wait_event_type,
+    wait_event,application_name
+from
+    pg_stat_activity
+where
+    client_port is not null
+    and query !~* '^vacuum'
+    and query !~* '^analyze|^analyse'
+    and query !~* 'pg_start_backup|pg_stop_backup'
+    and application_name <> 'pg_reorg'
+    and ( application_name = 'psql' and query ~* '^COPY' ) = false
+    and ( application_name = 'pg_dump' and query ~* '^COPY' and usename = 'pgdba' ) = false
+    and query !~* 'INDEX +CONCURRENTLY'
+    and query !~* 'pg_sleep'
+    and query !~* 'refresh +materialized +view'and state <> 'idle'and now() - query_start > '18 sec'
+2019-05-27 12:05:14,743 default  DEBUG 12290 database.py 64 execute_sql results: []
+2019-05-27 12:05:14,749 default  DEBUG 12290 database.py 57 execute_sql 
+select
+      wait.pid,
+      wait.state,
+      (select string_agg(distinct transactionid::text, ',') from pg_locks where pid = wait.pid and locktype = 'transactionid' and transactionid::text <> wait.transactionid::text),
+      wait.virtualxid,
+      wait.locktype,
+      wait.usename,
+      wait.application_name,
+      wait.client_addr,
+      wait.waiting,
+      wait.wait_event_type,
+      wait.wait_event,
+      wait.query_start,
+      extract(epoch from now() - wait.query_start) as wait_query_run_time,
+      wait.query,
+
+      granted.pid              as waitfor_pid,
+      granted.state            as waitfor_state,
+      granted.transactionid    as waitfor_transactionid,
+      granted.virtualxid       as waitfor_virtualxid,
+      granted.locktype         as waitfor_locktype,
+      granted.usename          as waitfor_usename,
+      granted.client_addr      as waitfor_client_addr,
+      granted.application_name as waitfor_application_name,
+      granted.waiting          as waitfor_waiting,
+      granted.wait_event_type  as waitfor_wait_event_type,
+      granted.wait_event       as waitfor_wait_event,
+      granted.query_start      as waitfor_query_start,
+      extract(epoch from now() - granted.query_start) as waitfor_query_run_time,
+      granted.query            as waitfor_query
+from
+    (select
+       a.pid,
+          a.state,
+       b.transactionid,
+          b.virtualxid,
+          b.locktype,
+          b.relation,
+          b.page,
+          b.tuple,
+          a.usename,
+          a.application_name,
+          a.client_addr,
+       'NULL' as waiting,
+          a.wait_event_type,
+          a.wait_event,
+       a.query_start,
+       a.query
+       from
+          pg_stat_activity a,
+          pg_locks b
+     where
+       a.pid = b.pid
+       and granted = 'f'
+       and a.wait_event_type is not null
+       ) wait
+join
+    (select
+       a.pid,
+          b.state,
+       a.transactionid,
+          a.virtualxid,
+          a.locktype,
+          a.relation,
+          a.page,
+          a.tuple,
+          b.usename,
+          b.application_name,
+          b.client_addr,
+       'NULL' as waiting,
+          b.wait_event_type,
+          b.wait_event,
+       b.query_start,
+       b.query
+       from
+        pg_locks a,
+        pg_stat_activity b
+    where
+       a.pid = b.pid
+       and a.granted = 't'
+    ) granted
+on (
+    ( wait.locktype = 'transactionid'
+    and granted.locktype = 'transactionid'
+    and wait.transactionid = granted.transactionid )
+    or
+    ( wait.locktype = 'relation'
+    and granted.locktype = 'relation'
+    and wait.relation = granted.relation
+    )
+    or
+    ( wait.locktype = 'virtualxid'
+    and granted.locktype = 'virtualxid'
+    and wait.virtualxid = granted.virtualxid )
+    or
+    ( wait.locktype = 'tuple'
+    and granted.locktype = 'tuple'
+    and wait.relation = granted.relation
+    and wait.page = granted.page
+    and wait.tuple = granted.tuple )
+)
+where  wait.query !~ '^autovacuum'
+and granted.query !~ '^autovacuum'
+and (wait.query ~* '^VACUUM' and wait.usename = 'pgdba') = false
+order by
+granted.query_start
+2019-05-27 12:05:14,759 default  DEBUG 12290 database.py 64 execute_sql results: []
+2019-05-27 12:05:14,759 default  DEBUG 12290 database.py 57 execute_sql select pg_is_in_recovery();
+2019-05-27 12:05:14,760 default  DEBUG 12290 database.py 64 execute_sql results: (False,)
+2019-05-27 12:05:14,761 default  DEBUG 12290 database.py 57 execute_sql 
+SELECT
+    application_name,
+    pg_wal_lsn_diff(pg_current_wal_lsn(), replay_lsn) as diff
+    FROM 
+    pg_stat_replication
+2019-05-27 12:05:14,763 default  DEBUG 12290 database.py 64 execute_sql results: []
+2019-05-27 12:05:14,763 default  DEBUG 12290 database.py 57 execute_sql select setting from pg_settings where name = 'max_connections';
+2019-05-27 12:05:14,765 default  DEBUG 12290 database.py 64 execute_sql results: ('256',)
+2019-05-27 12:05:14,765 default  DEBUG 12290 database.py 57 execute_sql select count(1) from pg_stat_activity;
+2019-05-27 12:05:14,767 default  DEBUG 12290 database.py 64 execute_sql results: (29L,)
+2019-05-27 12:05:14,767 default  DEBUG 12290 postgresql.py 145 info find postgresql listen port 5432 unix_socket_file /tmp/.s.PGSQL.5432.lock
+2019-05-27 12:05:14,769 default  INFO 12290 database.py 42 dbconnect <connection object at 0x7f07962c9e10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:05:14,769 default  DEBUG 12290 database.py 57 execute_sql select replace(setting, '.', ', ') from pg_settings where name = 'server_version';
+2019-05-27 12:05:14,771 default  DEBUG 12290 database.py 64 execute_sql results: ('12devel',)
+2019-05-27 12:05:14,776 default  DEBUG 12290 database.py 57 execute_sql select
+    pid,
+    query,
+  state,
+  datname,
+    usename,
+    now() - backend_start as backend_conn_time,
+    now() - query_start as query_run_time,
+    client_addr,
+  'NULL' as waiting,
+    wait_event_type,
+    wait_event,application_name
+from
+    pg_stat_activity
+where
+    client_port is not null
+    and query !~* '^vacuum'
+    and query !~* '^analyze|^analyse'
+    and query !~* 'pg_start_backup|pg_stop_backup'
+    and application_name <> 'pg_reorg'
+    and ( application_name = 'psql' and query ~* '^COPY' ) = false
+    and ( application_name = 'pg_dump' and query ~* '^COPY' and usename = 'pgdba' ) = false
+    and query !~* 'INDEX +CONCURRENTLY'
+    and query !~* 'pg_sleep'
+    and query !~* 'refresh +materialized +view'and state <> 'idle'and now() - query_start > '18 sec'
+2019-05-27 12:05:14,779 default  DEBUG 12290 database.py 64 execute_sql results: []
+2019-05-27 12:05:14,785 default  DEBUG 12290 database.py 57 execute_sql 
+select
+      wait.pid,
+      wait.state,
+      (select string_agg(distinct transactionid::text, ',') from pg_locks where pid = wait.pid and locktype = 'transactionid' and transactionid::text <> wait.transactionid::text),
+      wait.virtualxid,
+      wait.locktype,
+      wait.usename,
+      wait.application_name,
+      wait.client_addr,
+      wait.waiting,
+      wait.wait_event_type,
+      wait.wait_event,
+      wait.query_start,
+      extract(epoch from now() - wait.query_start) as wait_query_run_time,
+      wait.query,
+
+      granted.pid              as waitfor_pid,
+      granted.state            as waitfor_state,
+      granted.transactionid    as waitfor_transactionid,
+      granted.virtualxid       as waitfor_virtualxid,
+      granted.locktype         as waitfor_locktype,
+      granted.usename          as waitfor_usename,
+      granted.client_addr      as waitfor_client_addr,
+      granted.application_name as waitfor_application_name,
+      granted.waiting          as waitfor_waiting,
+      granted.wait_event_type  as waitfor_wait_event_type,
+      granted.wait_event       as waitfor_wait_event,
+      granted.query_start      as waitfor_query_start,
+      extract(epoch from now() - granted.query_start) as waitfor_query_run_time,
+      granted.query            as waitfor_query
+from
+    (select
+       a.pid,
+          a.state,
+       b.transactionid,
+          b.virtualxid,
+          b.locktype,
+          b.relation,
+          b.page,
+          b.tuple,
+          a.usename,
+          a.application_name,
+          a.client_addr,
+       'NULL' as waiting,
+          a.wait_event_type,
+          a.wait_event,
+       a.query_start,
+       a.query
+       from
+          pg_stat_activity a,
+          pg_locks b
+     where
+       a.pid = b.pid
+       and granted = 'f'
+       and a.wait_event_type is not null
+       ) wait
+join
+    (select
+       a.pid,
+          b.state,
+       a.transactionid,
+          a.virtualxid,
+          a.locktype,
+          a.relation,
+          a.page,
+          a.tuple,
+          b.usename,
+          b.application_name,
+          b.client_addr,
+       'NULL' as waiting,
+          b.wait_event_type,
+          b.wait_event,
+       b.query_start,
+       b.query
+       from
+        pg_locks a,
+        pg_stat_activity b
+    where
+       a.pid = b.pid
+       and a.granted = 't'
+    ) granted
+on (
+    ( wait.locktype = 'transactionid'
+    and granted.locktype = 'transactionid'
+    and wait.transactionid = granted.transactionid )
+    or
+    ( wait.locktype = 'relation'
+    and granted.locktype = 'relation'
+    and wait.relation = granted.relation
+    )
+    or
+    ( wait.locktype = 'virtualxid'
+    and granted.locktype = 'virtualxid'
+    and wait.virtualxid = granted.virtualxid )
+    or
+    ( wait.locktype = 'tuple'
+    and granted.locktype = 'tuple'
+    and wait.relation = granted.relation
+    and wait.page = granted.page
+    and wait.tuple = granted.tuple )
+)
+where  wait.query !~ '^autovacuum'
+and granted.query !~ '^autovacuum'
+and (wait.query ~* '^VACUUM' and wait.usename = 'pgdba') = false
+order by
+granted.query_start
+2019-05-27 12:05:14,791 default  DEBUG 12290 database.py 64 execute_sql results: []
+2019-05-27 12:05:14,791 default  DEBUG 12290 database.py 57 execute_sql select pg_is_in_recovery();
+2019-05-27 12:05:14,792 default  DEBUG 12290 database.py 64 execute_sql results: (False,)
+2019-05-27 12:05:14,793 default  DEBUG 12290 database.py 57 execute_sql 
+SELECT
+    application_name,
+    pg_wal_lsn_diff(pg_current_wal_lsn(), replay_lsn) as diff
+    FROM 
+    pg_stat_replication
+2019-05-27 12:05:14,795 default  DEBUG 12290 database.py 64 execute_sql results: []
+2019-05-27 12:05:14,795 default  DEBUG 12290 database.py 57 execute_sql select setting from pg_settings where name = 'max_connections';
+2019-05-27 12:05:14,796 default  DEBUG 12290 database.py 64 execute_sql results: ('100',)
+2019-05-27 12:05:14,796 default  DEBUG 12290 database.py 57 execute_sql select count(1) from pg_stat_activity;
+2019-05-27 12:05:14,798 default  DEBUG 12290 database.py 64 execute_sql results: (6L,)
+2019-05-27 12:05:14,798 default  INFO 12290 pg_monzbx.py 35 run sendtrap result: {'pg.[5433.locks.detail]': '', 'pg.[5433.master.slave_detail]': '', 'pg.[5432.conn.cnt]': 6, 'pg.[5433.conn.max_cnt]': 256, 'pg.[5432.master.slave_detail]': '', 'pg.[5432.slow_query.cnt]': 0, 'pg.[5433.slow_query.cnt]': 0, 'pg.[5432.conn.max_cnt]': 100, 'pg.[5433.locks.cnt]': 0, 'pg.[5433.master.slave_cnt]': 0, 'pg.[5433.slow_query.detail]': '', 'pg.[5432.locks.cnt]': 0, 'pg.[5432.locks.detail]': '', 'pg.[5433.conn.cnt]': 29, 'pg.[5432.master.slave_cnt]': 0, 'pg.[5432.slow_query.detail]': ''}
+2019-05-27 12:05:14,798 default  INFO 12290 sendproto.py 32 send send zabbix data: {'data': [{'host': 'localhost.domain', 'value': '', 'key': 'pg.[5433.locks.detail]'}, {'host': 'localhost.domain', 'value': '', 'key': 'pg.[5433.master.slave_detail]'}, {'host': 'localhost.domain', 'value': 6, 'key': 'pg.[5432.conn.cnt]'}, {'host': 'localhost.domain', 'value': 256, 'key': 'pg.[5433.conn.max_cnt]'}, {'host': 'localhost.domain', 'value': '', 'key': 'pg.[5432.master.slave_detail]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5432.slow_query.cnt]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5433.slow_query.cnt]'}, {'host': 'localhost.domain', 'value': 100, 'key': 'pg.[5432.conn.max_cnt]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5433.locks.cnt]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5433.master.slave_cnt]'}, {'host': 'localhost.domain', 'value': '', 'key': 'pg.[5433.slow_query.detail]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5432.locks.cnt]'}, {'host': 'localhost.domain', 'value': '', 'key': 'pg.[5432.locks.detail]'}, {'host': 'localhost.domain', 'value': 29, 'key': 'pg.[5433.conn.cnt]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5432.master.slave_cnt]'}, {'host': 'localhost.domain', 'value': '', 'key': 'pg.[5432.slow_query.detail]'}], 'request': 'sender data'} 
+2019-05-27 12:05:14,799 default  INFO 12290 pg_monzbx.py 39 run send status: {u'info': u'processed: 0; failed: 16; total: 16; seconds spent: 0.000106', u'response': u'success'}
+2019-05-27 12:05:19,738 default  INFO 12301 pg_monzbx.py 24 run parameter discover = True sendtrap = False
+2019-05-27 12:05:19,738 default  INFO 12301 pg_monzbx.py 43 run discover start
+2019-05-27 12:05:19,741 default  INFO 12301 database.py 42 dbconnect <connection object at 0x7f4948f94e10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:05:19,741 default  DEBUG 12301 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:05:19,741 default  DEBUG 12301 database.py 64 execute_sql results: (False,)
+2019-05-27 12:05:19,742 default  DEBUG 12301 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:05:19,746 default  DEBUG 12301 database.py 64 execute_sql results: []
+2019-05-27 12:05:19,748 default  INFO 12301 database.py 42 dbconnect <connection object at 0x7f4948f94e10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:05:19,749 default  DEBUG 12301 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:05:19,749 default  DEBUG 12301 database.py 64 execute_sql results: (False,)
+2019-05-27 12:05:19,749 default  DEBUG 12301 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:05:19,751 default  DEBUG 12301 database.py 64 execute_sql results: []
+2019-05-27 12:05:19,752 default  INFO 12301 pg_monzbx.py 52 run discover result: {'data': [{'{#PG.PORT}': u'5433', '{#PG.MON}': 1}, {'{#PG.PORT}': u'5432', '{#PG.MON}': 1}]}
+2019-05-27 12:05:20,876 default  INFO 12304 pg_monzbx.py 24 run parameter discover = True sendtrap = False
+2019-05-27 12:05:20,876 default  INFO 12304 pg_monzbx.py 43 run discover start
+2019-05-27 12:05:20,879 default  INFO 12304 database.py 42 dbconnect <connection object at 0x7f8d104d4e10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:05:20,879 default  DEBUG 12304 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:05:20,880 default  DEBUG 12304 database.py 64 execute_sql results: (False,)
+2019-05-27 12:05:20,880 default  DEBUG 12304 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:05:20,884 default  DEBUG 12304 database.py 64 execute_sql results: []
+2019-05-27 12:05:20,887 default  INFO 12304 database.py 42 dbconnect <connection object at 0x7f8d104d4e10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:05:20,887 default  DEBUG 12304 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:05:20,887 default  DEBUG 12304 database.py 64 execute_sql results: (False,)
+2019-05-27 12:05:20,887 default  DEBUG 12304 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:05:20,890 default  DEBUG 12304 database.py 64 execute_sql results: []
+2019-05-27 12:05:20,890 default  INFO 12304 pg_monzbx.py 52 run discover result: {'data': [{'{#PG.PORT}': u'5433', '{#PG.MON}': 1}, {'{#PG.PORT}': u'5432', '{#PG.MON}': 1}]}
+2019-05-27 12:05:21,558 default  INFO 12309 pg_monzbx.py 24 run parameter discover = True sendtrap = False
+2019-05-27 12:05:21,558 default  INFO 12309 pg_monzbx.py 43 run discover start
+2019-05-27 12:05:21,560 default  INFO 12309 database.py 42 dbconnect <connection object at 0x7f109797be10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:05:21,560 default  DEBUG 12309 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:05:21,561 default  DEBUG 12309 database.py 64 execute_sql results: (False,)
+2019-05-27 12:05:21,561 default  DEBUG 12309 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:05:21,566 default  DEBUG 12309 database.py 64 execute_sql results: []
+2019-05-27 12:05:21,568 default  INFO 12309 database.py 42 dbconnect <connection object at 0x7f109797be10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:05:21,568 default  DEBUG 12309 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:05:21,569 default  DEBUG 12309 database.py 64 execute_sql results: (False,)
+2019-05-27 12:05:21,569 default  DEBUG 12309 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:05:21,571 default  DEBUG 12309 database.py 64 execute_sql results: []
+2019-05-27 12:05:21,572 default  INFO 12309 pg_monzbx.py 52 run discover result: {'data': [{'{#PG.PORT}': u'5433', '{#PG.MON}': 1}, {'{#PG.PORT}': u'5432', '{#PG.MON}': 1}]}
+2019-05-27 12:05:22,198 default  INFO 12312 pg_monzbx.py 24 run parameter discover = True sendtrap = False
+2019-05-27 12:05:22,198 default  INFO 12312 pg_monzbx.py 43 run discover start
+2019-05-27 12:05:22,201 default  INFO 12312 database.py 42 dbconnect <connection object at 0x7fa9bca00e10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:05:22,201 default  DEBUG 12312 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:05:22,202 default  DEBUG 12312 database.py 64 execute_sql results: (False,)
+2019-05-27 12:05:22,202 default  DEBUG 12312 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:05:22,207 default  DEBUG 12312 database.py 64 execute_sql results: []
+2019-05-27 12:05:22,209 default  INFO 12312 database.py 42 dbconnect <connection object at 0x7fa9bca00e10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:05:22,209 default  DEBUG 12312 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:05:22,210 default  DEBUG 12312 database.py 64 execute_sql results: (False,)
+2019-05-27 12:05:22,210 default  DEBUG 12312 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:05:22,212 default  DEBUG 12312 database.py 64 execute_sql results: []
+2019-05-27 12:05:22,213 default  INFO 12312 pg_monzbx.py 52 run discover result: {'data': [{'{#PG.PORT}': u'5433', '{#PG.MON}': 1}, {'{#PG.PORT}': u'5432', '{#PG.MON}': 1}]}
+2019-05-27 12:09:12,831 default  INFO 12861 pg_monzbx.py 24 run parameter discover = True sendtrap = False
+2019-05-27 12:09:12,831 default  INFO 12861 pg_monzbx.py 43 run discover start
+2019-05-27 12:09:12,834 default  INFO 12861 database.py 42 dbconnect <connection object at 0x7eff30119e10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:09:12,834 default  DEBUG 12861 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:09:12,834 default  DEBUG 12861 database.py 64 execute_sql results: (False,)
+2019-05-27 12:09:12,835 default  DEBUG 12861 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:09:12,839 default  DEBUG 12861 database.py 64 execute_sql results: []
+2019-05-27 12:09:12,841 default  INFO 12861 database.py 42 dbconnect <connection object at 0x7eff30119e10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:09:12,841 default  DEBUG 12861 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:09:12,842 default  DEBUG 12861 database.py 64 execute_sql results: (False,)
+2019-05-27 12:09:12,842 default  DEBUG 12861 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:09:12,844 default  DEBUG 12861 database.py 64 execute_sql results: []
+2019-05-27 12:09:12,845 default  INFO 12861 pg_monzbx.py 52 run discover result: {'data': [{'{#PG.PORT}': u'5433', '{#PG.MON}': 1}, {'{#PG.PORT}': u'5432', '{#PG.MON}': 1}]}
+2019-05-27 12:09:13,880 default  INFO 12865 pg_monzbx.py 24 run parameter discover = True sendtrap = False
+2019-05-27 12:09:13,880 default  INFO 12865 pg_monzbx.py 43 run discover start
+2019-05-27 12:09:13,882 default  INFO 12865 database.py 42 dbconnect <connection object at 0x7f07e513de10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:09:13,883 default  DEBUG 12865 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:09:13,883 default  DEBUG 12865 database.py 64 execute_sql results: (False,)
+2019-05-27 12:09:13,883 default  DEBUG 12865 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:09:13,888 default  DEBUG 12865 database.py 64 execute_sql results: []
+2019-05-27 12:09:13,890 default  INFO 12865 database.py 42 dbconnect <connection object at 0x7f07e513de10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:09:13,890 default  DEBUG 12865 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:09:13,891 default  DEBUG 12865 database.py 64 execute_sql results: (False,)
+2019-05-27 12:09:13,891 default  DEBUG 12865 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:09:13,893 default  DEBUG 12865 database.py 64 execute_sql results: []
+2019-05-27 12:09:13,894 default  INFO 12865 pg_monzbx.py 52 run discover result: {'data': [{'{#PG.PORT}': u'5433', '{#PG.MON}': 1}, {'{#PG.PORT}': u'5432', '{#PG.MON}': 1}]}
+2019-05-27 12:09:15,049 default  INFO 12868 pg_monzbx.py 24 run parameter discover = True sendtrap = False
+2019-05-27 12:09:15,049 default  INFO 12868 pg_monzbx.py 43 run discover start
+2019-05-27 12:09:15,051 default  INFO 12868 database.py 42 dbconnect <connection object at 0x7fabe307ce10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:09:15,052 default  DEBUG 12868 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:09:15,052 default  DEBUG 12868 database.py 64 execute_sql results: (False,)
+2019-05-27 12:09:15,052 default  DEBUG 12868 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:09:15,057 default  DEBUG 12868 database.py 64 execute_sql results: []
+2019-05-27 12:09:15,059 default  INFO 12868 database.py 42 dbconnect <connection object at 0x7fabe307ce10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:09:15,059 default  DEBUG 12868 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:09:15,060 default  DEBUG 12868 database.py 64 execute_sql results: (False,)
+2019-05-27 12:09:15,060 default  DEBUG 12868 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:09:15,062 default  DEBUG 12868 database.py 64 execute_sql results: []
+2019-05-27 12:09:15,063 default  INFO 12868 pg_monzbx.py 52 run discover result: {'data': [{'{#PG.PORT}': u'5433', '{#PG.MON}': 1}, {'{#PG.PORT}': u'5432', '{#PG.MON}': 1}]}
+2019-05-27 12:09:15,589 default  INFO 12871 pg_monzbx.py 24 run parameter discover = True sendtrap = False
+2019-05-27 12:09:15,589 default  INFO 12871 pg_monzbx.py 43 run discover start
+2019-05-27 12:09:15,592 default  INFO 12871 database.py 42 dbconnect <connection object at 0x7fe32fe9be10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:09:15,592 default  DEBUG 12871 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:09:15,593 default  DEBUG 12871 database.py 64 execute_sql results: (False,)
+2019-05-27 12:09:15,593 default  DEBUG 12871 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:09:15,597 default  DEBUG 12871 database.py 64 execute_sql results: []
+2019-05-27 12:09:15,599 default  INFO 12871 database.py 42 dbconnect <connection object at 0x7fe32fe9be10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:09:15,600 default  DEBUG 12871 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:09:15,600 default  DEBUG 12871 database.py 64 execute_sql results: (False,)
+2019-05-27 12:09:15,600 default  DEBUG 12871 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:09:15,603 default  DEBUG 12871 database.py 64 execute_sql results: []
+2019-05-27 12:09:15,603 default  INFO 12871 pg_monzbx.py 52 run discover result: {'data': [{'{#PG.PORT}': u'5433', '{#PG.MON}': 1}, {'{#PG.PORT}': u'5432', '{#PG.MON}': 1}]}
+2019-05-27 12:09:16,088 default  INFO 12874 pg_monzbx.py 24 run parameter discover = True sendtrap = False
+2019-05-27 12:09:16,088 default  INFO 12874 pg_monzbx.py 43 run discover start
+2019-05-27 12:09:16,090 default  INFO 12874 database.py 42 dbconnect <connection object at 0x7fdfda89ee10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:09:16,090 default  DEBUG 12874 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:09:16,091 default  DEBUG 12874 database.py 64 execute_sql results: (False,)
+2019-05-27 12:09:16,091 default  DEBUG 12874 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:09:16,096 default  DEBUG 12874 database.py 64 execute_sql results: []
+2019-05-27 12:09:16,098 default  INFO 12874 database.py 42 dbconnect <connection object at 0x7fdfda89ee10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:09:16,098 default  DEBUG 12874 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:09:16,099 default  DEBUG 12874 database.py 64 execute_sql results: (False,)
+2019-05-27 12:09:16,099 default  DEBUG 12874 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:09:16,101 default  DEBUG 12874 database.py 64 execute_sql results: []
+2019-05-27 12:09:16,102 default  INFO 12874 pg_monzbx.py 52 run discover result: {'data': [{'{#PG.PORT}': u'5433', '{#PG.MON}': 1}, {'{#PG.PORT}': u'5432', '{#PG.MON}': 1}]}
+2019-05-27 12:09:16,605 default  INFO 12877 pg_monzbx.py 24 run parameter discover = True sendtrap = False
+2019-05-27 12:09:16,605 default  INFO 12877 pg_monzbx.py 43 run discover start
+2019-05-27 12:09:16,607 default  INFO 12877 database.py 42 dbconnect <connection object at 0x7f31041d5e10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:09:16,608 default  DEBUG 12877 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:09:16,608 default  DEBUG 12877 database.py 64 execute_sql results: (False,)
+2019-05-27 12:09:16,608 default  DEBUG 12877 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:09:16,613 default  DEBUG 12877 database.py 64 execute_sql results: []
+2019-05-27 12:09:16,615 default  INFO 12877 database.py 42 dbconnect <connection object at 0x7f31041d5e10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:09:16,615 default  DEBUG 12877 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:09:16,616 default  DEBUG 12877 database.py 64 execute_sql results: (False,)
+2019-05-27 12:09:16,616 default  DEBUG 12877 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:09:16,618 default  DEBUG 12877 database.py 64 execute_sql results: []
+2019-05-27 12:09:16,619 default  INFO 12877 pg_monzbx.py 52 run discover result: {'data': [{'{#PG.PORT}': u'5433', '{#PG.MON}': 1}, {'{#PG.PORT}': u'5432', '{#PG.MON}': 1}]}
+2019-05-27 12:09:17,152 default  INFO 12880 pg_monzbx.py 24 run parameter discover = True sendtrap = False
+2019-05-27 12:09:17,153 default  INFO 12880 pg_monzbx.py 43 run discover start
+2019-05-27 12:09:17,155 default  INFO 12880 database.py 42 dbconnect <connection object at 0x7faaddfa0e10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:09:17,155 default  DEBUG 12880 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:09:17,156 default  DEBUG 12880 database.py 64 execute_sql results: (False,)
+2019-05-27 12:09:17,156 default  DEBUG 12880 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:09:17,161 default  DEBUG 12880 database.py 64 execute_sql results: []
+2019-05-27 12:09:17,163 default  INFO 12880 database.py 42 dbconnect <connection object at 0x7faaddfa0e10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:09:17,163 default  DEBUG 12880 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:09:17,164 default  DEBUG 12880 database.py 64 execute_sql results: (False,)
+2019-05-27 12:09:17,164 default  DEBUG 12880 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:09:17,166 default  DEBUG 12880 database.py 64 execute_sql results: []
+2019-05-27 12:09:17,167 default  INFO 12880 pg_monzbx.py 52 run discover result: {'data': [{'{#PG.PORT}': u'5433', '{#PG.MON}': 1}, {'{#PG.PORT}': u'5432', '{#PG.MON}': 1}]}
+2019-05-27 12:09:17,687 default  INFO 12883 pg_monzbx.py 24 run parameter discover = True sendtrap = False
+2019-05-27 12:09:17,687 default  INFO 12883 pg_monzbx.py 43 run discover start
+2019-05-27 12:09:17,690 default  INFO 12883 database.py 42 dbconnect <connection object at 0x7fb481994e10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:09:17,690 default  DEBUG 12883 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:09:17,691 default  DEBUG 12883 database.py 64 execute_sql results: (False,)
+2019-05-27 12:09:17,691 default  DEBUG 12883 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:09:17,695 default  DEBUG 12883 database.py 64 execute_sql results: []
+2019-05-27 12:09:17,697 default  INFO 12883 database.py 42 dbconnect <connection object at 0x7fb481994e10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:09:17,698 default  DEBUG 12883 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:09:17,698 default  DEBUG 12883 database.py 64 execute_sql results: (False,)
+2019-05-27 12:09:17,698 default  DEBUG 12883 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:09:17,701 default  DEBUG 12883 database.py 64 execute_sql results: []
+2019-05-27 12:09:17,701 default  INFO 12883 pg_monzbx.py 52 run discover result: {'data': [{'{#PG.PORT}': u'5433', '{#PG.MON}': 1}, {'{#PG.PORT}': u'5432', '{#PG.MON}': 1}]}
+2019-05-27 12:09:18,228 default  INFO 12886 pg_monzbx.py 24 run parameter discover = True sendtrap = False
+2019-05-27 12:09:18,228 default  INFO 12886 pg_monzbx.py 43 run discover start
+2019-05-27 12:09:18,230 default  INFO 12886 database.py 42 dbconnect <connection object at 0x7fbb9cd3ce10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:09:18,231 default  DEBUG 12886 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:09:18,231 default  DEBUG 12886 database.py 64 execute_sql results: (False,)
+2019-05-27 12:09:18,231 default  DEBUG 12886 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:09:18,236 default  DEBUG 12886 database.py 64 execute_sql results: []
+2019-05-27 12:09:18,238 default  INFO 12886 database.py 42 dbconnect <connection object at 0x7fbb9cd3ce10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:09:18,238 default  DEBUG 12886 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:09:18,239 default  DEBUG 12886 database.py 64 execute_sql results: (False,)
+2019-05-27 12:09:18,239 default  DEBUG 12886 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:09:18,241 default  DEBUG 12886 database.py 64 execute_sql results: []
+2019-05-27 12:09:18,242 default  INFO 12886 pg_monzbx.py 52 run discover result: {'data': [{'{#PG.PORT}': u'5433', '{#PG.MON}': 1}, {'{#PG.PORT}': u'5432', '{#PG.MON}': 1}]}
+2019-05-27 12:09:18,738 default  INFO 12890 pg_monzbx.py 24 run parameter discover = True sendtrap = False
+2019-05-27 12:09:18,738 default  INFO 12890 pg_monzbx.py 43 run discover start
+2019-05-27 12:09:18,741 default  INFO 12890 database.py 42 dbconnect <connection object at 0x7fa1b0b9fe10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:09:18,741 default  DEBUG 12890 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:09:18,742 default  DEBUG 12890 database.py 64 execute_sql results: (False,)
+2019-05-27 12:09:18,742 default  DEBUG 12890 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:09:18,747 default  DEBUG 12890 database.py 64 execute_sql results: []
+2019-05-27 12:09:18,750 default  INFO 12890 database.py 42 dbconnect <connection object at 0x7fa1b0b9fe10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:09:18,750 default  DEBUG 12890 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:09:18,750 default  DEBUG 12890 database.py 64 execute_sql results: (False,)
+2019-05-27 12:09:18,751 default  DEBUG 12890 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:09:18,753 default  DEBUG 12890 database.py 64 execute_sql results: []
+2019-05-27 12:09:18,754 default  INFO 12890 pg_monzbx.py 52 run discover result: {'data': [{'{#PG.PORT}': u'5433', '{#PG.MON}': 1}, {'{#PG.PORT}': u'5432', '{#PG.MON}': 1}]}
+2019-05-27 12:09:19,298 default  INFO 12893 pg_monzbx.py 24 run parameter discover = True sendtrap = False
+2019-05-27 12:09:19,298 default  INFO 12893 pg_monzbx.py 43 run discover start
+2019-05-27 12:09:19,301 default  INFO 12893 database.py 42 dbconnect <connection object at 0x7f39e8fffe10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:09:19,301 default  DEBUG 12893 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:09:19,302 default  DEBUG 12893 database.py 64 execute_sql results: (False,)
+2019-05-27 12:09:19,302 default  DEBUG 12893 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:09:19,307 default  DEBUG 12893 database.py 64 execute_sql results: []
+2019-05-27 12:09:19,309 default  INFO 12893 database.py 42 dbconnect <connection object at 0x7f39e8fffe10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:09:19,309 default  DEBUG 12893 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:09:19,310 default  DEBUG 12893 database.py 64 execute_sql results: (False,)
+2019-05-27 12:09:19,310 default  DEBUG 12893 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:09:19,312 default  DEBUG 12893 database.py 64 execute_sql results: []
+2019-05-27 12:09:19,313 default  INFO 12893 pg_monzbx.py 52 run discover result: {'data': [{'{#PG.PORT}': u'5433', '{#PG.MON}': 1}, {'{#PG.PORT}': u'5432', '{#PG.MON}': 1}]}
+2019-05-27 12:09:19,751 default  INFO 12896 pg_monzbx.py 24 run parameter discover = True sendtrap = False
+2019-05-27 12:09:19,752 default  INFO 12896 pg_monzbx.py 43 run discover start
+2019-05-27 12:09:19,755 default  INFO 12896 database.py 42 dbconnect <connection object at 0x7efc263b0e10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:09:19,755 default  DEBUG 12896 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:09:19,756 default  DEBUG 12896 database.py 64 execute_sql results: (False,)
+2019-05-27 12:09:19,756 default  DEBUG 12896 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:09:19,761 default  DEBUG 12896 database.py 64 execute_sql results: []
+2019-05-27 12:09:19,763 default  INFO 12896 database.py 42 dbconnect <connection object at 0x7efc263b0e10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:09:19,763 default  DEBUG 12896 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:09:19,763 default  DEBUG 12896 database.py 64 execute_sql results: (False,)
+2019-05-27 12:09:19,764 default  DEBUG 12896 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:09:19,766 default  DEBUG 12896 database.py 64 execute_sql results: []
+2019-05-27 12:09:19,767 default  INFO 12896 pg_monzbx.py 52 run discover result: {'data': [{'{#PG.PORT}': u'5433', '{#PG.MON}': 1}, {'{#PG.PORT}': u'5432', '{#PG.MON}': 1}]}
+2019-05-27 12:09:20,343 default  INFO 12899 pg_monzbx.py 24 run parameter discover = True sendtrap = False
+2019-05-27 12:09:20,344 default  INFO 12899 pg_monzbx.py 43 run discover start
+2019-05-27 12:09:20,346 default  INFO 12899 database.py 42 dbconnect <connection object at 0x7f76bb4e6e10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:09:20,346 default  DEBUG 12899 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:09:20,347 default  DEBUG 12899 database.py 64 execute_sql results: (False,)
+2019-05-27 12:09:20,347 default  DEBUG 12899 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:09:20,352 default  DEBUG 12899 database.py 64 execute_sql results: []
+2019-05-27 12:09:20,354 default  INFO 12899 database.py 42 dbconnect <connection object at 0x7f76bb4e6e10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:09:20,354 default  DEBUG 12899 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:09:20,354 default  DEBUG 12899 database.py 64 execute_sql results: (False,)
+2019-05-27 12:09:20,355 default  DEBUG 12899 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:09:20,357 default  DEBUG 12899 database.py 64 execute_sql results: []
+2019-05-27 12:09:20,357 default  INFO 12899 pg_monzbx.py 52 run discover result: {'data': [{'{#PG.PORT}': u'5433', '{#PG.MON}': 1}, {'{#PG.PORT}': u'5432', '{#PG.MON}': 1}]}
+2019-05-27 12:09:20,890 default  INFO 12902 pg_monzbx.py 24 run parameter discover = True sendtrap = False
+2019-05-27 12:09:20,891 default  INFO 12902 pg_monzbx.py 43 run discover start
+2019-05-27 12:09:20,893 default  INFO 12902 database.py 42 dbconnect <connection object at 0x7f80150e6e10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:09:20,893 default  DEBUG 12902 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:09:20,894 default  DEBUG 12902 database.py 64 execute_sql results: (False,)
+2019-05-27 12:09:20,894 default  DEBUG 12902 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:09:20,899 default  DEBUG 12902 database.py 64 execute_sql results: []
+2019-05-27 12:09:20,901 default  INFO 12902 database.py 42 dbconnect <connection object at 0x7f80150e6e10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:09:20,901 default  DEBUG 12902 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:09:20,902 default  DEBUG 12902 database.py 64 execute_sql results: (False,)
+2019-05-27 12:09:20,902 default  DEBUG 12902 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:09:20,904 default  DEBUG 12902 database.py 64 execute_sql results: []
+2019-05-27 12:09:20,905 default  INFO 12902 pg_monzbx.py 52 run discover result: {'data': [{'{#PG.PORT}': u'5433', '{#PG.MON}': 1}, {'{#PG.PORT}': u'5432', '{#PG.MON}': 1}]}
+2019-05-27 12:09:21,295 default  INFO 12905 pg_monzbx.py 24 run parameter discover = True sendtrap = False
+2019-05-27 12:09:21,295 default  INFO 12905 pg_monzbx.py 43 run discover start
+2019-05-27 12:09:21,297 default  INFO 12905 database.py 42 dbconnect <connection object at 0x7f0048673e10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:09:21,297 default  DEBUG 12905 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:09:21,298 default  DEBUG 12905 database.py 64 execute_sql results: (False,)
+2019-05-27 12:09:21,298 default  DEBUG 12905 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:09:21,303 default  DEBUG 12905 database.py 64 execute_sql results: []
+2019-05-27 12:09:21,305 default  INFO 12905 database.py 42 dbconnect <connection object at 0x7f0048673e10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:09:21,305 default  DEBUG 12905 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:09:21,306 default  DEBUG 12905 database.py 64 execute_sql results: (False,)
+2019-05-27 12:09:21,306 default  DEBUG 12905 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:09:21,308 default  DEBUG 12905 database.py 64 execute_sql results: []
+2019-05-27 12:09:21,309 default  INFO 12905 pg_monzbx.py 52 run discover result: {'data': [{'{#PG.PORT}': u'5433', '{#PG.MON}': 1}, {'{#PG.PORT}': u'5432', '{#PG.MON}': 1}]}
+2019-05-27 12:10:16,289 default  INFO 13046 pg_monzbx.py 24 run parameter discover = True sendtrap = False
+2019-05-27 12:10:16,289 default  INFO 13046 pg_monzbx.py 43 run discover start
+2019-05-27 12:10:16,292 default  INFO 13046 database.py 42 dbconnect <connection object at 0x7fc570ba3e10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:10:16,292 default  DEBUG 13046 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:10:16,293 default  DEBUG 13046 database.py 64 execute_sql results: (False,)
+2019-05-27 12:10:16,293 default  DEBUG 13046 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:10:16,298 default  DEBUG 13046 database.py 64 execute_sql results: []
+2019-05-27 12:10:16,300 default  INFO 13046 database.py 42 dbconnect <connection object at 0x7fc570ba3e10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:10:16,300 default  DEBUG 13046 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:10:16,301 default  DEBUG 13046 database.py 64 execute_sql results: (False,)
+2019-05-27 12:10:16,301 default  DEBUG 13046 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:10:16,303 default  DEBUG 13046 database.py 64 execute_sql results: []
+2019-05-27 12:10:16,304 default  INFO 13046 pg_monzbx.py 52 run discover result: {'data': [{'{#PG.PORT}': u'5433', '{#PG.MON}': 1}, {'{#PG.PORT}': u'5432', '{#PG.MON}': 1}]}
+2019-05-27 12:10:16,971 default  INFO 13049 pg_monzbx.py 24 run parameter discover = True sendtrap = False
+2019-05-27 12:10:16,971 default  INFO 13049 pg_monzbx.py 43 run discover start
+2019-05-27 12:10:16,974 default  INFO 13049 database.py 42 dbconnect <connection object at 0x7f0a5bbaae10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:10:16,974 default  DEBUG 13049 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:10:16,974 default  DEBUG 13049 database.py 64 execute_sql results: (False,)
+2019-05-27 12:10:16,974 default  DEBUG 13049 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:10:16,979 default  DEBUG 13049 database.py 64 execute_sql results: []
+2019-05-27 12:10:16,981 default  INFO 13049 database.py 42 dbconnect <connection object at 0x7f0a5bbaae10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:10:16,982 default  DEBUG 13049 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:10:16,982 default  DEBUG 13049 database.py 64 execute_sql results: (False,)
+2019-05-27 12:10:16,982 default  DEBUG 13049 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:10:16,985 default  DEBUG 13049 database.py 64 execute_sql results: []
+2019-05-27 12:10:16,985 default  INFO 13049 pg_monzbx.py 52 run discover result: {'data': [{'{#PG.PORT}': u'5433', '{#PG.MON}': 1}, {'{#PG.PORT}': u'5432', '{#PG.MON}': 1}]}
+2019-05-27 12:10:17,683 default  INFO 13052 pg_monzbx.py 24 run parameter discover = True sendtrap = False
+2019-05-27 12:10:17,683 default  INFO 13052 pg_monzbx.py 43 run discover start
+2019-05-27 12:10:17,686 default  INFO 13052 database.py 42 dbconnect <connection object at 0x7f83c63ece10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:10:17,686 default  DEBUG 13052 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:10:17,686 default  DEBUG 13052 database.py 64 execute_sql results: (False,)
+2019-05-27 12:10:17,687 default  DEBUG 13052 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:10:17,691 default  DEBUG 13052 database.py 64 execute_sql results: []
+2019-05-27 12:10:17,693 default  INFO 13052 database.py 42 dbconnect <connection object at 0x7f83c63ece10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:10:17,694 default  DEBUG 13052 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:10:17,694 default  DEBUG 13052 database.py 64 execute_sql results: (False,)
+2019-05-27 12:10:17,694 default  DEBUG 13052 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:10:17,696 default  DEBUG 13052 database.py 64 execute_sql results: []
+2019-05-27 12:10:17,697 default  INFO 13052 pg_monzbx.py 52 run discover result: {'data': [{'{#PG.PORT}': u'5433', '{#PG.MON}': 1}, {'{#PG.PORT}': u'5432', '{#PG.MON}': 1}]}
+2019-05-27 12:10:18,217 default  INFO 13055 pg_monzbx.py 24 run parameter discover = True sendtrap = False
+2019-05-27 12:10:18,217 default  INFO 13055 pg_monzbx.py 43 run discover start
+2019-05-27 12:10:18,219 default  INFO 13055 database.py 42 dbconnect <connection object at 0x7f0fc34dde10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:10:18,219 default  DEBUG 13055 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:10:18,220 default  DEBUG 13055 database.py 64 execute_sql results: (False,)
+2019-05-27 12:10:18,220 default  DEBUG 13055 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:10:18,225 default  DEBUG 13055 database.py 64 execute_sql results: []
+2019-05-27 12:10:18,227 default  INFO 13055 database.py 42 dbconnect <connection object at 0x7f0fc34dde10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:10:18,227 default  DEBUG 13055 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:10:18,228 default  DEBUG 13055 database.py 64 execute_sql results: (False,)
+2019-05-27 12:10:18,228 default  DEBUG 13055 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:10:18,230 default  DEBUG 13055 database.py 64 execute_sql results: []
+2019-05-27 12:10:18,231 default  INFO 13055 pg_monzbx.py 52 run discover result: {'data': [{'{#PG.PORT}': u'5433', '{#PG.MON}': 1}, {'{#PG.PORT}': u'5432', '{#PG.MON}': 1}]}
+2019-05-27 12:10:18,697 default  INFO 13058 pg_monzbx.py 24 run parameter discover = True sendtrap = False
+2019-05-27 12:10:18,697 default  INFO 13058 pg_monzbx.py 43 run discover start
+2019-05-27 12:10:18,700 default  INFO 13058 database.py 42 dbconnect <connection object at 0x7f2efab11e10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:10:18,700 default  DEBUG 13058 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:10:18,701 default  DEBUG 13058 database.py 64 execute_sql results: (False,)
+2019-05-27 12:10:18,701 default  DEBUG 13058 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:10:18,705 default  DEBUG 13058 database.py 64 execute_sql results: []
+2019-05-27 12:10:18,708 default  INFO 13058 database.py 42 dbconnect <connection object at 0x7f2efab11e10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:10:18,708 default  DEBUG 13058 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:10:18,709 default  DEBUG 13058 database.py 64 execute_sql results: (False,)
+2019-05-27 12:10:18,709 default  DEBUG 13058 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:10:18,711 default  DEBUG 13058 database.py 64 execute_sql results: []
+2019-05-27 12:10:18,712 default  INFO 13058 pg_monzbx.py 52 run discover result: {'data': [{'{#PG.PORT}': u'5433', '{#PG.MON}': 1}, {'{#PG.PORT}': u'5432', '{#PG.MON}': 1}]}
+2019-05-27 12:10:19,415 default  INFO 13061 pg_monzbx.py 24 run parameter discover = True sendtrap = False
+2019-05-27 12:10:19,415 default  INFO 13061 pg_monzbx.py 43 run discover start
+2019-05-27 12:10:19,417 default  INFO 13061 database.py 42 dbconnect <connection object at 0x7fbb41e5ee10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:10:19,417 default  DEBUG 13061 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:10:19,418 default  DEBUG 13061 database.py 64 execute_sql results: (False,)
+2019-05-27 12:10:19,418 default  DEBUG 13061 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:10:19,423 default  DEBUG 13061 database.py 64 execute_sql results: []
+2019-05-27 12:10:19,425 default  INFO 13061 database.py 42 dbconnect <connection object at 0x7fbb41e5ee10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:10:19,425 default  DEBUG 13061 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:10:19,426 default  DEBUG 13061 database.py 64 execute_sql results: (False,)
+2019-05-27 12:10:19,426 default  DEBUG 13061 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:10:19,428 default  DEBUG 13061 database.py 64 execute_sql results: []
+2019-05-27 12:10:19,429 default  INFO 13061 pg_monzbx.py 52 run discover result: {'data': [{'{#PG.PORT}': u'5433', '{#PG.MON}': 1}, {'{#PG.PORT}': u'5432', '{#PG.MON}': 1}]}
+2019-05-27 12:10:19,986 default  INFO 13064 pg_monzbx.py 24 run parameter discover = True sendtrap = False
+2019-05-27 12:10:19,986 default  INFO 13064 pg_monzbx.py 43 run discover start
+2019-05-27 12:10:19,988 default  INFO 13064 database.py 42 dbconnect <connection object at 0x7f22808e3e10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:10:19,989 default  DEBUG 13064 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:10:19,989 default  DEBUG 13064 database.py 64 execute_sql results: (False,)
+2019-05-27 12:10:19,989 default  DEBUG 13064 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:10:19,994 default  DEBUG 13064 database.py 64 execute_sql results: []
+2019-05-27 12:10:19,996 default  INFO 13064 database.py 42 dbconnect <connection object at 0x7f22808e3e10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:10:19,997 default  DEBUG 13064 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:10:19,997 default  DEBUG 13064 database.py 64 execute_sql results: (False,)
+2019-05-27 12:10:19,997 default  DEBUG 13064 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:10:19,999 default  DEBUG 13064 database.py 64 execute_sql results: []
+2019-05-27 12:10:20,000 default  INFO 13064 pg_monzbx.py 52 run discover result: {'data': [{'{#PG.PORT}': u'5433', '{#PG.MON}': 1}, {'{#PG.PORT}': u'5432', '{#PG.MON}': 1}]}
+2019-05-27 12:10:20,603 default  INFO 13067 pg_monzbx.py 24 run parameter discover = True sendtrap = False
+2019-05-27 12:10:20,603 default  INFO 13067 pg_monzbx.py 43 run discover start
+2019-05-27 12:10:20,605 default  INFO 13067 database.py 42 dbconnect <connection object at 0x7f35b7e69e10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:10:20,606 default  DEBUG 13067 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:10:20,606 default  DEBUG 13067 database.py 64 execute_sql results: (False,)
+2019-05-27 12:10:20,606 default  DEBUG 13067 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:10:20,611 default  DEBUG 13067 database.py 64 execute_sql results: []
+2019-05-27 12:10:20,613 default  INFO 13067 database.py 42 dbconnect <connection object at 0x7f35b7e69e10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:10:20,614 default  DEBUG 13067 database.py 57 execute_sql select pg_is_in_recovery()
+2019-05-27 12:10:20,614 default  DEBUG 13067 database.py 64 execute_sql results: (False,)
+2019-05-27 12:10:20,614 default  DEBUG 13067 database.py 57 execute_sql select application_name from pg_stat_replication
+2019-05-27 12:10:20,617 default  DEBUG 13067 database.py 64 execute_sql results: []
+2019-05-27 12:10:20,617 default  INFO 13067 pg_monzbx.py 52 run discover result: {'data': [{'{#PG.PORT}': u'5433', '{#PG.MON}': 1}, {'{#PG.PORT}': u'5432', '{#PG.MON}': 1}]}
+2019-05-27 12:11:54,922 default  INFO 13545 pg_monzbx.py 24 run parameter discover = False sendtrap = True
+2019-05-27 12:11:54,922 default  INFO 13545 pg_monzbx.py 28 run sendtrap start
+2019-05-27 12:11:54,922 default  DEBUG 13545 postgresql.py 145 info find postgresql listen port 5433 unix_socket_file /tmp/.s.PGSQL.5433.lock
+2019-05-27 12:11:54,924 default  INFO 13545 database.py 42 dbconnect <connection object at 0x7feff9a34e10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:11:54,925 default  DEBUG 13545 database.py 57 execute_sql select replace(setting, '.', ', ') from pg_settings where name = 'server_version';
+2019-05-27 12:11:54,927 default  DEBUG 13545 database.py 64 execute_sql results: ('11, 3',)
+2019-05-27 12:11:54,933 default  DEBUG 13545 database.py 57 execute_sql select
+    pid,
+    query,
+  state,
+  datname,
+    usename,
+    now() - backend_start as backend_conn_time,
+    now() - query_start as query_run_time,
+    client_addr,
+  'NULL' as waiting,
+    wait_event_type,
+    wait_event,application_name
+from
+    pg_stat_activity
+where
+    client_port is not null
+    and query !~* '^vacuum'
+    and query !~* '^analyze|^analyse'
+    and query !~* 'pg_start_backup|pg_stop_backup'
+    and application_name <> 'pg_reorg'
+    and ( application_name = 'psql' and query ~* '^COPY' ) = false
+    and ( application_name = 'pg_dump' and query ~* '^COPY' and usename = 'pgdba' ) = false
+    and query !~* 'INDEX +CONCURRENTLY'
+    and query !~* 'pg_sleep'
+    and query !~* 'refresh +materialized +view'and state <> 'idle'and now() - query_start > '18 sec'
+2019-05-27 12:11:54,939 default  DEBUG 13545 database.py 64 execute_sql results: []
+2019-05-27 12:11:54,945 default  DEBUG 13545 database.py 57 execute_sql 
+select
+      wait.pid,
+      wait.state,
+      (select string_agg(distinct transactionid::text, ',') from pg_locks where pid = wait.pid and locktype = 'transactionid' and transactionid::text <> wait.transactionid::text),
+      wait.virtualxid,
+      wait.locktype,
+      wait.usename,
+      wait.application_name,
+      wait.client_addr,
+      wait.waiting,
+      wait.wait_event_type,
+      wait.wait_event,
+      wait.query_start,
+      extract(epoch from now() - wait.query_start) as wait_query_run_time,
+      wait.query,
+
+      granted.pid              as waitfor_pid,
+      granted.state            as waitfor_state,
+      granted.transactionid    as waitfor_transactionid,
+      granted.virtualxid       as waitfor_virtualxid,
+      granted.locktype         as waitfor_locktype,
+      granted.usename          as waitfor_usename,
+      granted.client_addr      as waitfor_client_addr,
+      granted.application_name as waitfor_application_name,
+      granted.waiting          as waitfor_waiting,
+      granted.wait_event_type  as waitfor_wait_event_type,
+      granted.wait_event       as waitfor_wait_event,
+      granted.query_start      as waitfor_query_start,
+      extract(epoch from now() - granted.query_start) as waitfor_query_run_time,
+      granted.query            as waitfor_query
+from
+    (select
+       a.pid,
+          a.state,
+       b.transactionid,
+          b.virtualxid,
+          b.locktype,
+          b.relation,
+          b.page,
+          b.tuple,
+          a.usename,
+          a.application_name,
+          a.client_addr,
+       'NULL' as waiting,
+          a.wait_event_type,
+          a.wait_event,
+       a.query_start,
+       a.query
+       from
+          pg_stat_activity a,
+          pg_locks b
+     where
+       a.pid = b.pid
+       and granted = 'f'
+       and a.wait_event_type is not null
+       ) wait
+join
+    (select
+       a.pid,
+          b.state,
+       a.transactionid,
+          a.virtualxid,
+          a.locktype,
+          a.relation,
+          a.page,
+          a.tuple,
+          b.usename,
+          b.application_name,
+          b.client_addr,
+       'NULL' as waiting,
+          b.wait_event_type,
+          b.wait_event,
+       b.query_start,
+       b.query
+       from
+        pg_locks a,
+        pg_stat_activity b
+    where
+       a.pid = b.pid
+       and a.granted = 't'
+    ) granted
+on (
+    ( wait.locktype = 'transactionid'
+    and granted.locktype = 'transactionid'
+    and wait.transactionid = granted.transactionid )
+    or
+    ( wait.locktype = 'relation'
+    and granted.locktype = 'relation'
+    and wait.relation = granted.relation
+    )
+    or
+    ( wait.locktype = 'virtualxid'
+    and granted.locktype = 'virtualxid'
+    and wait.virtualxid = granted.virtualxid )
+    or
+    ( wait.locktype = 'tuple'
+    and granted.locktype = 'tuple'
+    and wait.relation = granted.relation
+    and wait.page = granted.page
+    and wait.tuple = granted.tuple )
+)
+where  wait.query !~ '^autovacuum'
+and granted.query !~ '^autovacuum'
+and (wait.query ~* '^VACUUM' and wait.usename = 'pgdba') = false
+order by
+granted.query_start
+2019-05-27 12:11:54,955 default  DEBUG 13545 database.py 64 execute_sql results: []
+2019-05-27 12:11:54,956 default  DEBUG 13545 database.py 57 execute_sql select pg_is_in_recovery();
+2019-05-27 12:11:54,956 default  DEBUG 13545 database.py 64 execute_sql results: (False,)
+2019-05-27 12:11:54,957 default  DEBUG 13545 database.py 57 execute_sql 
+SELECT
+    application_name,
+    pg_wal_lsn_diff(pg_current_wal_lsn(), replay_lsn) as diff
+    FROM 
+    pg_stat_replication
+2019-05-27 12:11:54,960 default  DEBUG 13545 database.py 64 execute_sql results: []
+2019-05-27 12:11:54,960 default  DEBUG 13545 database.py 57 execute_sql select setting from pg_settings where name = 'max_connections';
+2019-05-27 12:11:54,961 default  DEBUG 13545 database.py 64 execute_sql results: ('256',)
+2019-05-27 12:11:54,962 default  DEBUG 13545 database.py 57 execute_sql select count(1) from pg_stat_activity;
+2019-05-27 12:11:54,963 default  DEBUG 13545 database.py 64 execute_sql results: (29L,)
+2019-05-27 12:11:54,964 default  DEBUG 13545 postgresql.py 145 info find postgresql listen port 5432 unix_socket_file /tmp/.s.PGSQL.5432.lock
+2019-05-27 12:11:54,966 default  INFO 13545 database.py 42 dbconnect <connection object at 0x7feff9a34e10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:11:54,967 default  DEBUG 13545 database.py 57 execute_sql select replace(setting, '.', ', ') from pg_settings where name = 'server_version';
+2019-05-27 12:11:54,970 default  DEBUG 13545 database.py 64 execute_sql results: ('12devel',)
+2019-05-27 12:11:54,975 default  DEBUG 13545 database.py 57 execute_sql select
+    pid,
+    query,
+  state,
+  datname,
+    usename,
+    now() - backend_start as backend_conn_time,
+    now() - query_start as query_run_time,
+    client_addr,
+  'NULL' as waiting,
+    wait_event_type,
+    wait_event,application_name
+from
+    pg_stat_activity
+where
+    client_port is not null
+    and query !~* '^vacuum'
+    and query !~* '^analyze|^analyse'
+    and query !~* 'pg_start_backup|pg_stop_backup'
+    and application_name <> 'pg_reorg'
+    and ( application_name = 'psql' and query ~* '^COPY' ) = false
+    and ( application_name = 'pg_dump' and query ~* '^COPY' and usename = 'pgdba' ) = false
+    and query !~* 'INDEX +CONCURRENTLY'
+    and query !~* 'pg_sleep'
+    and query !~* 'refresh +materialized +view'and state <> 'idle'and now() - query_start > '18 sec'
+2019-05-27 12:11:54,980 default  DEBUG 13545 database.py 64 execute_sql results: []
+2019-05-27 12:11:54,986 default  DEBUG 13545 database.py 57 execute_sql 
+select
+      wait.pid,
+      wait.state,
+      (select string_agg(distinct transactionid::text, ',') from pg_locks where pid = wait.pid and locktype = 'transactionid' and transactionid::text <> wait.transactionid::text),
+      wait.virtualxid,
+      wait.locktype,
+      wait.usename,
+      wait.application_name,
+      wait.client_addr,
+      wait.waiting,
+      wait.wait_event_type,
+      wait.wait_event,
+      wait.query_start,
+      extract(epoch from now() - wait.query_start) as wait_query_run_time,
+      wait.query,
+
+      granted.pid              as waitfor_pid,
+      granted.state            as waitfor_state,
+      granted.transactionid    as waitfor_transactionid,
+      granted.virtualxid       as waitfor_virtualxid,
+      granted.locktype         as waitfor_locktype,
+      granted.usename          as waitfor_usename,
+      granted.client_addr      as waitfor_client_addr,
+      granted.application_name as waitfor_application_name,
+      granted.waiting          as waitfor_waiting,
+      granted.wait_event_type  as waitfor_wait_event_type,
+      granted.wait_event       as waitfor_wait_event,
+      granted.query_start      as waitfor_query_start,
+      extract(epoch from now() - granted.query_start) as waitfor_query_run_time,
+      granted.query            as waitfor_query
+from
+    (select
+       a.pid,
+          a.state,
+       b.transactionid,
+          b.virtualxid,
+          b.locktype,
+          b.relation,
+          b.page,
+          b.tuple,
+          a.usename,
+          a.application_name,
+          a.client_addr,
+       'NULL' as waiting,
+          a.wait_event_type,
+          a.wait_event,
+       a.query_start,
+       a.query
+       from
+          pg_stat_activity a,
+          pg_locks b
+     where
+       a.pid = b.pid
+       and granted = 'f'
+       and a.wait_event_type is not null
+       ) wait
+join
+    (select
+       a.pid,
+          b.state,
+       a.transactionid,
+          a.virtualxid,
+          a.locktype,
+          a.relation,
+          a.page,
+          a.tuple,
+          b.usename,
+          b.application_name,
+          b.client_addr,
+       'NULL' as waiting,
+          b.wait_event_type,
+          b.wait_event,
+       b.query_start,
+       b.query
+       from
+        pg_locks a,
+        pg_stat_activity b
+    where
+       a.pid = b.pid
+       and a.granted = 't'
+    ) granted
+on (
+    ( wait.locktype = 'transactionid'
+    and granted.locktype = 'transactionid'
+    and wait.transactionid = granted.transactionid )
+    or
+    ( wait.locktype = 'relation'
+    and granted.locktype = 'relation'
+    and wait.relation = granted.relation
+    )
+    or
+    ( wait.locktype = 'virtualxid'
+    and granted.locktype = 'virtualxid'
+    and wait.virtualxid = granted.virtualxid )
+    or
+    ( wait.locktype = 'tuple'
+    and granted.locktype = 'tuple'
+    and wait.relation = granted.relation
+    and wait.page = granted.page
+    and wait.tuple = granted.tuple )
+)
+where  wait.query !~ '^autovacuum'
+and granted.query !~ '^autovacuum'
+and (wait.query ~* '^VACUUM' and wait.usename = 'pgdba') = false
+order by
+granted.query_start
+2019-05-27 12:11:54,995 default  DEBUG 13545 database.py 64 execute_sql results: []
+2019-05-27 12:11:54,995 default  DEBUG 13545 database.py 57 execute_sql select pg_is_in_recovery();
+2019-05-27 12:11:54,996 default  DEBUG 13545 database.py 64 execute_sql results: (False,)
+2019-05-27 12:11:54,997 default  DEBUG 13545 database.py 57 execute_sql 
+SELECT
+    application_name,
+    pg_wal_lsn_diff(pg_current_wal_lsn(), replay_lsn) as diff
+    FROM 
+    pg_stat_replication
+2019-05-27 12:11:55,000 default  DEBUG 13545 database.py 64 execute_sql results: []
+2019-05-27 12:11:55,000 default  DEBUG 13545 database.py 57 execute_sql select setting from pg_settings where name = 'max_connections';
+2019-05-27 12:11:55,002 default  DEBUG 13545 database.py 64 execute_sql results: ('100',)
+2019-05-27 12:11:55,002 default  DEBUG 13545 database.py 57 execute_sql select count(1) from pg_stat_activity;
+2019-05-27 12:11:55,004 default  DEBUG 13545 database.py 64 execute_sql results: (6L,)
+2019-05-27 12:11:55,005 default  INFO 13545 pg_monzbx.py 35 run sendtrap result: {'pg.[5433.locks.detail]': '', 'pg.[5433.master.slave_detail]': '', 'pg.[5432.conn.cnt]': 6, 'pg.[5433.conn.max_cnt]': 256, 'pg.[5432.master.slave_detail]': '', 'pg.[5432.slow_query.cnt]': 0, 'pg.[5433.slow_query.cnt]': 0, 'pg.[5432.conn.max_cnt]': 100, 'pg.[5433.locks.cnt]': 0, 'pg.[5433.master.slave_cnt]': 0, 'pg.[5433.slow_query.detail]': '', 'pg.[5432.locks.cnt]': 0, 'pg.[5432.locks.detail]': '', 'pg.[5433.conn.cnt]': 29, 'pg.[5432.master.slave_cnt]': 0, 'pg.[5432.slow_query.detail]': ''}
+2019-05-27 12:11:55,005 default  INFO 13545 sendproto.py 32 send send zabbix data: {'data': [{'host': 'localhost.domain', 'value': '', 'key': 'pg.[5433.locks.detail]'}, {'host': 'localhost.domain', 'value': '', 'key': 'pg.[5433.master.slave_detail]'}, {'host': 'localhost.domain', 'value': 6, 'key': 'pg.[5432.conn.cnt]'}, {'host': 'localhost.domain', 'value': 256, 'key': 'pg.[5433.conn.max_cnt]'}, {'host': 'localhost.domain', 'value': '', 'key': 'pg.[5432.master.slave_detail]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5432.slow_query.cnt]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5433.slow_query.cnt]'}, {'host': 'localhost.domain', 'value': 100, 'key': 'pg.[5432.conn.max_cnt]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5433.locks.cnt]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5433.master.slave_cnt]'}, {'host': 'localhost.domain', 'value': '', 'key': 'pg.[5433.slow_query.detail]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5432.locks.cnt]'}, {'host': 'localhost.domain', 'value': '', 'key': 'pg.[5432.locks.detail]'}, {'host': 'localhost.domain', 'value': 29, 'key': 'pg.[5433.conn.cnt]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5432.master.slave_cnt]'}, {'host': 'localhost.domain', 'value': '', 'key': 'pg.[5432.slow_query.detail]'}], 'request': 'sender data'} 
+2019-05-27 12:11:55,005 default  INFO 13545 pg_monzbx.py 39 run send status: {u'info': u'processed: 0; failed: 16; total: 16; seconds spent: 0.000146', u'response': u'success'}
+2019-05-27 12:11:55,826 default  INFO 13549 pg_monzbx.py 24 run parameter discover = False sendtrap = True
+2019-05-27 12:11:55,826 default  INFO 13549 pg_monzbx.py 28 run sendtrap start
+2019-05-27 12:11:55,827 default  DEBUG 13549 postgresql.py 145 info find postgresql listen port 5433 unix_socket_file /tmp/.s.PGSQL.5433.lock
+2019-05-27 12:11:55,829 default  INFO 13549 database.py 42 dbconnect <connection object at 0x7f3bb5372e10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:11:55,829 default  DEBUG 13549 database.py 57 execute_sql select replace(setting, '.', ', ') from pg_settings where name = 'server_version';
+2019-05-27 12:11:55,831 default  DEBUG 13549 database.py 64 execute_sql results: ('11, 3',)
+2019-05-27 12:11:55,837 default  DEBUG 13549 database.py 57 execute_sql select
+    pid,
+    query,
+  state,
+  datname,
+    usename,
+    now() - backend_start as backend_conn_time,
+    now() - query_start as query_run_time,
+    client_addr,
+  'NULL' as waiting,
+    wait_event_type,
+    wait_event,application_name
+from
+    pg_stat_activity
+where
+    client_port is not null
+    and query !~* '^vacuum'
+    and query !~* '^analyze|^analyse'
+    and query !~* 'pg_start_backup|pg_stop_backup'
+    and application_name <> 'pg_reorg'
+    and ( application_name = 'psql' and query ~* '^COPY' ) = false
+    and ( application_name = 'pg_dump' and query ~* '^COPY' and usename = 'pgdba' ) = false
+    and query !~* 'INDEX +CONCURRENTLY'
+    and query !~* 'pg_sleep'
+    and query !~* 'refresh +materialized +view'and state <> 'idle'and now() - query_start > '18 sec'
+2019-05-27 12:11:55,843 default  DEBUG 13549 database.py 64 execute_sql results: []
+2019-05-27 12:11:55,849 default  DEBUG 13549 database.py 57 execute_sql 
+select
+      wait.pid,
+      wait.state,
+      (select string_agg(distinct transactionid::text, ',') from pg_locks where pid = wait.pid and locktype = 'transactionid' and transactionid::text <> wait.transactionid::text),
+      wait.virtualxid,
+      wait.locktype,
+      wait.usename,
+      wait.application_name,
+      wait.client_addr,
+      wait.waiting,
+      wait.wait_event_type,
+      wait.wait_event,
+      wait.query_start,
+      extract(epoch from now() - wait.query_start) as wait_query_run_time,
+      wait.query,
+
+      granted.pid              as waitfor_pid,
+      granted.state            as waitfor_state,
+      granted.transactionid    as waitfor_transactionid,
+      granted.virtualxid       as waitfor_virtualxid,
+      granted.locktype         as waitfor_locktype,
+      granted.usename          as waitfor_usename,
+      granted.client_addr      as waitfor_client_addr,
+      granted.application_name as waitfor_application_name,
+      granted.waiting          as waitfor_waiting,
+      granted.wait_event_type  as waitfor_wait_event_type,
+      granted.wait_event       as waitfor_wait_event,
+      granted.query_start      as waitfor_query_start,
+      extract(epoch from now() - granted.query_start) as waitfor_query_run_time,
+      granted.query            as waitfor_query
+from
+    (select
+       a.pid,
+          a.state,
+       b.transactionid,
+          b.virtualxid,
+          b.locktype,
+          b.relation,
+          b.page,
+          b.tuple,
+          a.usename,
+          a.application_name,
+          a.client_addr,
+       'NULL' as waiting,
+          a.wait_event_type,
+          a.wait_event,
+       a.query_start,
+       a.query
+       from
+          pg_stat_activity a,
+          pg_locks b
+     where
+       a.pid = b.pid
+       and granted = 'f'
+       and a.wait_event_type is not null
+       ) wait
+join
+    (select
+       a.pid,
+          b.state,
+       a.transactionid,
+          a.virtualxid,
+          a.locktype,
+          a.relation,
+          a.page,
+          a.tuple,
+          b.usename,
+          b.application_name,
+          b.client_addr,
+       'NULL' as waiting,
+          b.wait_event_type,
+          b.wait_event,
+       b.query_start,
+       b.query
+       from
+        pg_locks a,
+        pg_stat_activity b
+    where
+       a.pid = b.pid
+       and a.granted = 't'
+    ) granted
+on (
+    ( wait.locktype = 'transactionid'
+    and granted.locktype = 'transactionid'
+    and wait.transactionid = granted.transactionid )
+    or
+    ( wait.locktype = 'relation'
+    and granted.locktype = 'relation'
+    and wait.relation = granted.relation
+    )
+    or
+    ( wait.locktype = 'virtualxid'
+    and granted.locktype = 'virtualxid'
+    and wait.virtualxid = granted.virtualxid )
+    or
+    ( wait.locktype = 'tuple'
+    and granted.locktype = 'tuple'
+    and wait.relation = granted.relation
+    and wait.page = granted.page
+    and wait.tuple = granted.tuple )
+)
+where  wait.query !~ '^autovacuum'
+and granted.query !~ '^autovacuum'
+and (wait.query ~* '^VACUUM' and wait.usename = 'pgdba') = false
+order by
+granted.query_start
+2019-05-27 12:11:55,859 default  DEBUG 13549 database.py 64 execute_sql results: []
+2019-05-27 12:11:55,859 default  DEBUG 13549 database.py 57 execute_sql select pg_is_in_recovery();
+2019-05-27 12:11:55,859 default  DEBUG 13549 database.py 64 execute_sql results: (False,)
+2019-05-27 12:11:55,860 default  DEBUG 13549 database.py 57 execute_sql 
+SELECT
+    application_name,
+    pg_wal_lsn_diff(pg_current_wal_lsn(), replay_lsn) as diff
+    FROM 
+    pg_stat_replication
+2019-05-27 12:11:55,863 default  DEBUG 13549 database.py 64 execute_sql results: []
+2019-05-27 12:11:55,863 default  DEBUG 13549 database.py 57 execute_sql select setting from pg_settings where name = 'max_connections';
+2019-05-27 12:11:55,865 default  DEBUG 13549 database.py 64 execute_sql results: ('256',)
+2019-05-27 12:11:55,865 default  DEBUG 13549 database.py 57 execute_sql select count(1) from pg_stat_activity;
+2019-05-27 12:11:55,866 default  DEBUG 13549 database.py 64 execute_sql results: (29L,)
+2019-05-27 12:11:55,867 default  DEBUG 13549 postgresql.py 145 info find postgresql listen port 5432 unix_socket_file /tmp/.s.PGSQL.5432.lock
+2019-05-27 12:11:55,869 default  INFO 13549 database.py 42 dbconnect <connection object at 0x7f3bb5372e10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:11:55,869 default  DEBUG 13549 database.py 57 execute_sql select replace(setting, '.', ', ') from pg_settings where name = 'server_version';
+2019-05-27 12:11:55,871 default  DEBUG 13549 database.py 64 execute_sql results: ('12devel',)
+2019-05-27 12:11:55,875 default  DEBUG 13549 database.py 57 execute_sql select
+    pid,
+    query,
+  state,
+  datname,
+    usename,
+    now() - backend_start as backend_conn_time,
+    now() - query_start as query_run_time,
+    client_addr,
+  'NULL' as waiting,
+    wait_event_type,
+    wait_event,application_name
+from
+    pg_stat_activity
+where
+    client_port is not null
+    and query !~* '^vacuum'
+    and query !~* '^analyze|^analyse'
+    and query !~* 'pg_start_backup|pg_stop_backup'
+    and application_name <> 'pg_reorg'
+    and ( application_name = 'psql' and query ~* '^COPY' ) = false
+    and ( application_name = 'pg_dump' and query ~* '^COPY' and usename = 'pgdba' ) = false
+    and query !~* 'INDEX +CONCURRENTLY'
+    and query !~* 'pg_sleep'
+    and query !~* 'refresh +materialized +view'and state <> 'idle'and now() - query_start > '18 sec'
+2019-05-27 12:11:55,879 default  DEBUG 13549 database.py 64 execute_sql results: []
+2019-05-27 12:11:55,885 default  DEBUG 13549 database.py 57 execute_sql 
+select
+      wait.pid,
+      wait.state,
+      (select string_agg(distinct transactionid::text, ',') from pg_locks where pid = wait.pid and locktype = 'transactionid' and transactionid::text <> wait.transactionid::text),
+      wait.virtualxid,
+      wait.locktype,
+      wait.usename,
+      wait.application_name,
+      wait.client_addr,
+      wait.waiting,
+      wait.wait_event_type,
+      wait.wait_event,
+      wait.query_start,
+      extract(epoch from now() - wait.query_start) as wait_query_run_time,
+      wait.query,
+
+      granted.pid              as waitfor_pid,
+      granted.state            as waitfor_state,
+      granted.transactionid    as waitfor_transactionid,
+      granted.virtualxid       as waitfor_virtualxid,
+      granted.locktype         as waitfor_locktype,
+      granted.usename          as waitfor_usename,
+      granted.client_addr      as waitfor_client_addr,
+      granted.application_name as waitfor_application_name,
+      granted.waiting          as waitfor_waiting,
+      granted.wait_event_type  as waitfor_wait_event_type,
+      granted.wait_event       as waitfor_wait_event,
+      granted.query_start      as waitfor_query_start,
+      extract(epoch from now() - granted.query_start) as waitfor_query_run_time,
+      granted.query            as waitfor_query
+from
+    (select
+       a.pid,
+          a.state,
+       b.transactionid,
+          b.virtualxid,
+          b.locktype,
+          b.relation,
+          b.page,
+          b.tuple,
+          a.usename,
+          a.application_name,
+          a.client_addr,
+       'NULL' as waiting,
+          a.wait_event_type,
+          a.wait_event,
+       a.query_start,
+       a.query
+       from
+          pg_stat_activity a,
+          pg_locks b
+     where
+       a.pid = b.pid
+       and granted = 'f'
+       and a.wait_event_type is not null
+       ) wait
+join
+    (select
+       a.pid,
+          b.state,
+       a.transactionid,
+          a.virtualxid,
+          a.locktype,
+          a.relation,
+          a.page,
+          a.tuple,
+          b.usename,
+          b.application_name,
+          b.client_addr,
+       'NULL' as waiting,
+          b.wait_event_type,
+          b.wait_event,
+       b.query_start,
+       b.query
+       from
+        pg_locks a,
+        pg_stat_activity b
+    where
+       a.pid = b.pid
+       and a.granted = 't'
+    ) granted
+on (
+    ( wait.locktype = 'transactionid'
+    and granted.locktype = 'transactionid'
+    and wait.transactionid = granted.transactionid )
+    or
+    ( wait.locktype = 'relation'
+    and granted.locktype = 'relation'
+    and wait.relation = granted.relation
+    )
+    or
+    ( wait.locktype = 'virtualxid'
+    and granted.locktype = 'virtualxid'
+    and wait.virtualxid = granted.virtualxid )
+    or
+    ( wait.locktype = 'tuple'
+    and granted.locktype = 'tuple'
+    and wait.relation = granted.relation
+    and wait.page = granted.page
+    and wait.tuple = granted.tuple )
+)
+where  wait.query !~ '^autovacuum'
+and granted.query !~ '^autovacuum'
+and (wait.query ~* '^VACUUM' and wait.usename = 'pgdba') = false
+order by
+granted.query_start
+2019-05-27 12:11:55,891 default  DEBUG 13549 database.py 64 execute_sql results: []
+2019-05-27 12:11:55,891 default  DEBUG 13549 database.py 57 execute_sql select pg_is_in_recovery();
+2019-05-27 12:11:55,892 default  DEBUG 13549 database.py 64 execute_sql results: (False,)
+2019-05-27 12:11:55,893 default  DEBUG 13549 database.py 57 execute_sql 
+SELECT
+    application_name,
+    pg_wal_lsn_diff(pg_current_wal_lsn(), replay_lsn) as diff
+    FROM 
+    pg_stat_replication
+2019-05-27 12:11:55,895 default  DEBUG 13549 database.py 64 execute_sql results: []
+2019-05-27 12:11:55,895 default  DEBUG 13549 database.py 57 execute_sql select setting from pg_settings where name = 'max_connections';
+2019-05-27 12:11:55,896 default  DEBUG 13549 database.py 64 execute_sql results: ('100',)
+2019-05-27 12:11:55,896 default  DEBUG 13549 database.py 57 execute_sql select count(1) from pg_stat_activity;
+2019-05-27 12:11:55,898 default  DEBUG 13549 database.py 64 execute_sql results: (6L,)
+2019-05-27 12:11:55,898 default  INFO 13549 pg_monzbx.py 35 run sendtrap result: {'pg.[5433.locks.detail]': '', 'pg.[5433.master.slave_detail]': '', 'pg.[5432.conn.cnt]': 6, 'pg.[5433.conn.max_cnt]': 256, 'pg.[5432.master.slave_detail]': '', 'pg.[5432.slow_query.cnt]': 0, 'pg.[5433.slow_query.cnt]': 0, 'pg.[5432.conn.max_cnt]': 100, 'pg.[5433.locks.cnt]': 0, 'pg.[5433.master.slave_cnt]': 0, 'pg.[5433.slow_query.detail]': '', 'pg.[5432.locks.cnt]': 0, 'pg.[5432.locks.detail]': '', 'pg.[5433.conn.cnt]': 29, 'pg.[5432.master.slave_cnt]': 0, 'pg.[5432.slow_query.detail]': ''}
+2019-05-27 12:11:55,898 default  INFO 13549 sendproto.py 32 send send zabbix data: {'data': [{'host': 'localhost.domain', 'value': '', 'key': 'pg.[5433.locks.detail]'}, {'host': 'localhost.domain', 'value': '', 'key': 'pg.[5433.master.slave_detail]'}, {'host': 'localhost.domain', 'value': 6, 'key': 'pg.[5432.conn.cnt]'}, {'host': 'localhost.domain', 'value': 256, 'key': 'pg.[5433.conn.max_cnt]'}, {'host': 'localhost.domain', 'value': '', 'key': 'pg.[5432.master.slave_detail]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5432.slow_query.cnt]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5433.slow_query.cnt]'}, {'host': 'localhost.domain', 'value': 100, 'key': 'pg.[5432.conn.max_cnt]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5433.locks.cnt]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5433.master.slave_cnt]'}, {'host': 'localhost.domain', 'value': '', 'key': 'pg.[5433.slow_query.detail]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5432.locks.cnt]'}, {'host': 'localhost.domain', 'value': '', 'key': 'pg.[5432.locks.detail]'}, {'host': 'localhost.domain', 'value': 29, 'key': 'pg.[5433.conn.cnt]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5432.master.slave_cnt]'}, {'host': 'localhost.domain', 'value': '', 'key': 'pg.[5432.slow_query.detail]'}], 'request': 'sender data'} 
+2019-05-27 12:11:55,899 default  INFO 13549 pg_monzbx.py 39 run send status: {u'info': u'processed: 0; failed: 16; total: 16; seconds spent: 0.000082', u'response': u'success'}
+2019-05-27 12:12:24,584 default  INFO 13652 pg_monzbx.py 24 run parameter discover = False sendtrap = True
+2019-05-27 12:12:24,584 default  INFO 13652 pg_monzbx.py 28 run sendtrap start
+2019-05-27 12:12:24,584 default  DEBUG 13652 postgresql.py 145 info find postgresql listen port 5433 unix_socket_file /tmp/.s.PGSQL.5433.lock
+2019-05-27 12:12:24,586 default  INFO 13652 database.py 42 dbconnect <connection object at 0x7f2f4e7dde10; dsn: 'user=postgres host=localhost password=xxx port=5433 dbname=postgres', closed: 0>
+2019-05-27 12:12:24,586 default  DEBUG 13652 database.py 57 execute_sql select replace(setting, '.', ', ') from pg_settings where name = 'server_version';
+2019-05-27 12:12:24,589 default  DEBUG 13652 database.py 64 execute_sql results: ('11, 3',)
+2019-05-27 12:12:24,594 default  DEBUG 13652 database.py 57 execute_sql select
+    pid,
+    query,
+  state,
+  datname,
+    usename,
+    now() - backend_start as backend_conn_time,
+    now() - query_start as query_run_time,
+    client_addr,
+  'NULL' as waiting,
+    wait_event_type,
+    wait_event,application_name
+from
+    pg_stat_activity
+where
+    client_port is not null
+    and query !~* '^vacuum'
+    and query !~* '^analyze|^analyse'
+    and query !~* 'pg_start_backup|pg_stop_backup'
+    and application_name <> 'pg_reorg'
+    and ( application_name = 'psql' and query ~* '^COPY' ) = false
+    and ( application_name = 'pg_dump' and query ~* '^COPY' and usename = 'pgdba' ) = false
+    and query !~* 'INDEX +CONCURRENTLY'
+    and query !~* 'pg_sleep'
+    and query !~* 'refresh +materialized +view'and state <> 'idle'and now() - query_start > '18 sec'
+2019-05-27 12:12:24,601 default  DEBUG 13652 database.py 64 execute_sql results: []
+2019-05-27 12:12:24,607 default  DEBUG 13652 database.py 57 execute_sql 
+select
+      wait.pid,
+      wait.state,
+      (select string_agg(distinct transactionid::text, ',') from pg_locks where pid = wait.pid and locktype = 'transactionid' and transactionid::text <> wait.transactionid::text),
+      wait.virtualxid,
+      wait.locktype,
+      wait.usename,
+      wait.application_name,
+      wait.client_addr,
+      wait.waiting,
+      wait.wait_event_type,
+      wait.wait_event,
+      wait.query_start,
+      extract(epoch from now() - wait.query_start) as wait_query_run_time,
+      wait.query,
+
+      granted.pid              as waitfor_pid,
+      granted.state            as waitfor_state,
+      granted.transactionid    as waitfor_transactionid,
+      granted.virtualxid       as waitfor_virtualxid,
+      granted.locktype         as waitfor_locktype,
+      granted.usename          as waitfor_usename,
+      granted.client_addr      as waitfor_client_addr,
+      granted.application_name as waitfor_application_name,
+      granted.waiting          as waitfor_waiting,
+      granted.wait_event_type  as waitfor_wait_event_type,
+      granted.wait_event       as waitfor_wait_event,
+      granted.query_start      as waitfor_query_start,
+      extract(epoch from now() - granted.query_start) as waitfor_query_run_time,
+      granted.query            as waitfor_query
+from
+    (select
+       a.pid,
+          a.state,
+       b.transactionid,
+          b.virtualxid,
+          b.locktype,
+          b.relation,
+          b.page,
+          b.tuple,
+          a.usename,
+          a.application_name,
+          a.client_addr,
+       'NULL' as waiting,
+          a.wait_event_type,
+          a.wait_event,
+       a.query_start,
+       a.query
+       from
+          pg_stat_activity a,
+          pg_locks b
+     where
+       a.pid = b.pid
+       and granted = 'f'
+       and a.wait_event_type is not null
+       ) wait
+join
+    (select
+       a.pid,
+          b.state,
+       a.transactionid,
+          a.virtualxid,
+          a.locktype,
+          a.relation,
+          a.page,
+          a.tuple,
+          b.usename,
+          b.application_name,
+          b.client_addr,
+       'NULL' as waiting,
+          b.wait_event_type,
+          b.wait_event,
+       b.query_start,
+       b.query
+       from
+        pg_locks a,
+        pg_stat_activity b
+    where
+       a.pid = b.pid
+       and a.granted = 't'
+    ) granted
+on (
+    ( wait.locktype = 'transactionid'
+    and granted.locktype = 'transactionid'
+    and wait.transactionid = granted.transactionid )
+    or
+    ( wait.locktype = 'relation'
+    and granted.locktype = 'relation'
+    and wait.relation = granted.relation
+    )
+    or
+    ( wait.locktype = 'virtualxid'
+    and granted.locktype = 'virtualxid'
+    and wait.virtualxid = granted.virtualxid )
+    or
+    ( wait.locktype = 'tuple'
+    and granted.locktype = 'tuple'
+    and wait.relation = granted.relation
+    and wait.page = granted.page
+    and wait.tuple = granted.tuple )
+)
+where  wait.query !~ '^autovacuum'
+and granted.query !~ '^autovacuum'
+and (wait.query ~* '^VACUUM' and wait.usename = 'pgdba') = false
+order by
+granted.query_start
+2019-05-27 12:12:24,618 default  DEBUG 13652 database.py 64 execute_sql results: []
+2019-05-27 12:12:24,618 default  DEBUG 13652 database.py 57 execute_sql select pg_is_in_recovery();
+2019-05-27 12:12:24,619 default  DEBUG 13652 database.py 64 execute_sql results: (False,)
+2019-05-27 12:12:24,620 default  DEBUG 13652 database.py 57 execute_sql 
+SELECT
+    application_name,
+    pg_wal_lsn_diff(pg_current_wal_lsn(), replay_lsn) as diff
+    FROM 
+    pg_stat_replication
+2019-05-27 12:12:24,622 default  DEBUG 13652 database.py 64 execute_sql results: []
+2019-05-27 12:12:24,622 default  DEBUG 13652 database.py 57 execute_sql select setting from pg_settings where name = 'max_connections';
+2019-05-27 12:12:24,624 default  DEBUG 13652 database.py 64 execute_sql results: ('256',)
+2019-05-27 12:12:24,624 default  DEBUG 13652 database.py 57 execute_sql select count(1) from pg_stat_activity;
+2019-05-27 12:12:24,625 default  DEBUG 13652 database.py 64 execute_sql results: (29L,)
+2019-05-27 12:12:24,626 default  DEBUG 13652 postgresql.py 145 info find postgresql listen port 5432 unix_socket_file /tmp/.s.PGSQL.5432.lock
+2019-05-27 12:12:24,628 default  INFO 13652 database.py 42 dbconnect <connection object at 0x7f2f4e7dde10; dsn: 'user=postgres host=localhost password=xxx port=5432 dbname=postgres', closed: 0>
+2019-05-27 12:12:24,628 default  DEBUG 13652 database.py 57 execute_sql select replace(setting, '.', ', ') from pg_settings where name = 'server_version';
+2019-05-27 12:12:24,630 default  DEBUG 13652 database.py 64 execute_sql results: ('12devel',)
+2019-05-27 12:12:24,635 default  DEBUG 13652 database.py 57 execute_sql select
+    pid,
+    query,
+  state,
+  datname,
+    usename,
+    now() - backend_start as backend_conn_time,
+    now() - query_start as query_run_time,
+    client_addr,
+  'NULL' as waiting,
+    wait_event_type,
+    wait_event,application_name
+from
+    pg_stat_activity
+where
+    client_port is not null
+    and query !~* '^vacuum'
+    and query !~* '^analyze|^analyse'
+    and query !~* 'pg_start_backup|pg_stop_backup'
+    and application_name <> 'pg_reorg'
+    and ( application_name = 'psql' and query ~* '^COPY' ) = false
+    and ( application_name = 'pg_dump' and query ~* '^COPY' and usename = 'pgdba' ) = false
+    and query !~* 'INDEX +CONCURRENTLY'
+    and query !~* 'pg_sleep'
+    and query !~* 'refresh +materialized +view'and state <> 'idle'and now() - query_start > '18 sec'
+2019-05-27 12:12:24,639 default  DEBUG 13652 database.py 64 execute_sql results: []
+2019-05-27 12:12:24,645 default  DEBUG 13652 database.py 57 execute_sql 
+select
+      wait.pid,
+      wait.state,
+      (select string_agg(distinct transactionid::text, ',') from pg_locks where pid = wait.pid and locktype = 'transactionid' and transactionid::text <> wait.transactionid::text),
+      wait.virtualxid,
+      wait.locktype,
+      wait.usename,
+      wait.application_name,
+      wait.client_addr,
+      wait.waiting,
+      wait.wait_event_type,
+      wait.wait_event,
+      wait.query_start,
+      extract(epoch from now() - wait.query_start) as wait_query_run_time,
+      wait.query,
+
+      granted.pid              as waitfor_pid,
+      granted.state            as waitfor_state,
+      granted.transactionid    as waitfor_transactionid,
+      granted.virtualxid       as waitfor_virtualxid,
+      granted.locktype         as waitfor_locktype,
+      granted.usename          as waitfor_usename,
+      granted.client_addr      as waitfor_client_addr,
+      granted.application_name as waitfor_application_name,
+      granted.waiting          as waitfor_waiting,
+      granted.wait_event_type  as waitfor_wait_event_type,
+      granted.wait_event       as waitfor_wait_event,
+      granted.query_start      as waitfor_query_start,
+      extract(epoch from now() - granted.query_start) as waitfor_query_run_time,
+      granted.query            as waitfor_query
+from
+    (select
+       a.pid,
+          a.state,
+       b.transactionid,
+          b.virtualxid,
+          b.locktype,
+          b.relation,
+          b.page,
+          b.tuple,
+          a.usename,
+          a.application_name,
+          a.client_addr,
+       'NULL' as waiting,
+          a.wait_event_type,
+          a.wait_event,
+       a.query_start,
+       a.query
+       from
+          pg_stat_activity a,
+          pg_locks b
+     where
+       a.pid = b.pid
+       and granted = 'f'
+       and a.wait_event_type is not null
+       ) wait
+join
+    (select
+       a.pid,
+          b.state,
+       a.transactionid,
+          a.virtualxid,
+          a.locktype,
+          a.relation,
+          a.page,
+          a.tuple,
+          b.usename,
+          b.application_name,
+          b.client_addr,
+       'NULL' as waiting,
+          b.wait_event_type,
+          b.wait_event,
+       b.query_start,
+       b.query
+       from
+        pg_locks a,
+        pg_stat_activity b
+    where
+       a.pid = b.pid
+       and a.granted = 't'
+    ) granted
+on (
+    ( wait.locktype = 'transactionid'
+    and granted.locktype = 'transactionid'
+    and wait.transactionid = granted.transactionid )
+    or
+    ( wait.locktype = 'relation'
+    and granted.locktype = 'relation'
+    and wait.relation = granted.relation
+    )
+    or
+    ( wait.locktype = 'virtualxid'
+    and granted.locktype = 'virtualxid'
+    and wait.virtualxid = granted.virtualxid )
+    or
+    ( wait.locktype = 'tuple'
+    and granted.locktype = 'tuple'
+    and wait.relation = granted.relation
+    and wait.page = granted.page
+    and wait.tuple = granted.tuple )
+)
+where  wait.query !~ '^autovacuum'
+and granted.query !~ '^autovacuum'
+and (wait.query ~* '^VACUUM' and wait.usename = 'pgdba') = false
+order by
+granted.query_start
+2019-05-27 12:12:24,652 default  DEBUG 13652 database.py 64 execute_sql results: []
+2019-05-27 12:12:24,652 default  DEBUG 13652 database.py 57 execute_sql select pg_is_in_recovery();
+2019-05-27 12:12:24,652 default  DEBUG 13652 database.py 64 execute_sql results: (False,)
+2019-05-27 12:12:24,653 default  DEBUG 13652 database.py 57 execute_sql 
+SELECT
+    application_name,
+    pg_wal_lsn_diff(pg_current_wal_lsn(), replay_lsn) as diff
+    FROM 
+    pg_stat_replication
+2019-05-27 12:12:24,655 default  DEBUG 13652 database.py 64 execute_sql results: []
+2019-05-27 12:12:24,655 default  DEBUG 13652 database.py 57 execute_sql select setting from pg_settings where name = 'max_connections';
+2019-05-27 12:12:24,657 default  DEBUG 13652 database.py 64 execute_sql results: ('100',)
+2019-05-27 12:12:24,657 default  DEBUG 13652 database.py 57 execute_sql select count(1) from pg_stat_activity;
+2019-05-27 12:12:24,659 default  DEBUG 13652 database.py 64 execute_sql results: (6L,)
+2019-05-27 12:12:24,659 default  INFO 13652 pg_monzbx.py 35 run sendtrap result: {'pg.[5433.locks.detail]': '', 'pg.[5433.master.slave_detail]': '', 'pg.[5432.conn.cnt]': 6, 'pg.[5433.conn.max_cnt]': 256, 'pg.[5432.master.slave_detail]': '', 'pg.[5432.slow_query.cnt]': 0, 'pg.[5433.slow_query.cnt]': 0, 'pg.[5432.conn.max_cnt]': 100, 'pg.[5433.locks.cnt]': 0, 'pg.[5433.master.slave_cnt]': 0, 'pg.[5433.slow_query.detail]': '', 'pg.[5432.locks.cnt]': 0, 'pg.[5432.locks.detail]': '', 'pg.[5433.conn.cnt]': 29, 'pg.[5432.master.slave_cnt]': 0, 'pg.[5432.slow_query.detail]': ''}
+2019-05-27 12:12:24,660 default  INFO 13652 sendproto.py 32 send send zabbix data: {'data': [{'host': 'localhost.domain', 'value': '', 'key': 'pg.[5433.locks.detail]'}, {'host': 'localhost.domain', 'value': '', 'key': 'pg.[5433.master.slave_detail]'}, {'host': 'localhost.domain', 'value': 6, 'key': 'pg.[5432.conn.cnt]'}, {'host': 'localhost.domain', 'value': 256, 'key': 'pg.[5433.conn.max_cnt]'}, {'host': 'localhost.domain', 'value': '', 'key': 'pg.[5432.master.slave_detail]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5432.slow_query.cnt]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5433.slow_query.cnt]'}, {'host': 'localhost.domain', 'value': 100, 'key': 'pg.[5432.conn.max_cnt]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5433.locks.cnt]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5433.master.slave_cnt]'}, {'host': 'localhost.domain', 'value': '', 'key': 'pg.[5433.slow_query.detail]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5432.locks.cnt]'}, {'host': 'localhost.domain', 'value': '', 'key': 'pg.[5432.locks.detail]'}, {'host': 'localhost.domain', 'value': 29, 'key': 'pg.[5433.conn.cnt]'}, {'host': 'localhost.domain', 'value': 0, 'key': 'pg.[5432.master.slave_cnt]'}, {'host': 'localhost.domain', 'value': '', 'key': 'pg.[5432.slow_query.detail]'}], 'request': 'sender data'} 
+2019-05-27 12:12:24,661 default  INFO 13652 pg_monzbx.py 39 run send status: {u'info': u'processed: 0; failed: 16; total: 16; seconds spent: 0.000177', u'response': u'success'}
