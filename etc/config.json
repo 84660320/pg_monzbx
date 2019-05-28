@@ -4,7 +4,11 @@
     "stream_slave_sec": 1800,
     "lock_timeout": 5,
     "db_black_list":"['template1', 'template0', 'pgbouncer', 'postgres']",
-    "pgbuser":"postgres",
-    "pgbpassword":"postgres"
+    "user":"postgres",
+    "password":"postgres",
+    "dbname":"postgres",
+    "pgbdbname":"pgbouncer",
+    "zbx_server":"127.0.0.1",
+    "zbx_port":10051
 }
 

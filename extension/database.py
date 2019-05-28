@@ -7,22 +7,28 @@ import time
 
 from logger import logger
 from zbxcfg import zbxcfg
-from zbx_query import *
 
 log = logger().getlogger
 
 class database(object):
-    conn = ''
-    cur = ''
 
-    def __init__(self, host='localhost', port=5432, dbname='postgres', dbuser='postgres', password='postgres'):
-        self.host = host
-        self.port = port
-        self.dbname = dbname
-        self.dbuser = dbuser
-        self.password = password
-        self.config = zbxcfg().config()
+    def __init__(self, type='pg'):
+        self.host = 'localhost'
+        try:
+            self.config = zbxcfg().config()
+            self.dbuser = self.config['user']
+            self.password = self.config['password']
+            if type == 'pg':
+                self.dbname = self.config['dbname']
+            elif type == 'pgb':
+                self.dbname = self.config['pgbdbname']
+            else:
+                log.error("Type not supported")
+            self.unix_socket_directory = self.config['unix_socket_directory']
 
+            log.debug("config : {}".format(self.config))
+        except Exception as e:
+            log.error(e)
 
     def dbconnect(self):
         url = "host={} port={} user={} dbname={} password={}".format(self.host, self.port, self.dbuser, self.dbname, self.password)
@@ -41,7 +47,7 @@ class database(object):
 
         log.info(self.conn)
 
- 
+
     def disconnect(self):
         if self.cur:
             self.cur.close()

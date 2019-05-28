@@ -15,15 +15,13 @@ from pgbouncer import pgbouncer
 from sendproto import sendproto
 
 
-def run(sendtrap=True, discover=False):
+def run(args):
     log = logger().getlogger
 
-    pg = postgresql(host='localhost', port=5432, dbname='postgres', dbuser='postgres', password='postgres')
-    pgb = pgbouncer(host='localhost', port=6432, dbname='pgbouncer', dbuser='postgres', password='postgres')
+    pg = postgresql(args)
+    pgb = pgbouncer(args)
 
-    log.info("parameter discover = {} sendtrap = {}".format(discover, sendtrap))
-
-    if sendtrap:
+    if args.sendtrap:
         info = {}
         log.info("sendtrap start")
 
@@ -32,24 +30,23 @@ def run(sendtrap=True, discover=False):
 
         pgbInfo = pgb.info()
         info.update(pgbInfo)
-        log.info("sendtrap result: {}".format(info) )
+        log.info("sendtrap result: {}".format(info))
 
-        zbx = sendproto('127.0.0.1', 10051)
+        zbx = sendproto(pg.config['zbx_server'], pg.config['zbx_port'])
         resp = zbx.send(info)
-        log.info("send status: {}".format(resp) )
 
-    elif discover:
+        log.info("send status: {}".format(resp))
+
+    elif args.discover:
         info = {}
         log.info("discover start")
 
         pgInfo = pg.discover()
-        #info.update(pgInfo)
-
         pgbInfo = pgb.discover()
-        #info.update(pgbInfo)
+
         info['data'] = pgInfo + pgbInfo
 
-        log.info("discover result: {}".format(info) )
+        log.info("discover result: {}".format(json.dumps(info, sort_keys=True, indent=4, separators=(',', ':'))))
         print (json.dumps(info, indent=4))
 
 if __name__=='__main__':
@@ -58,8 +55,7 @@ if __name__=='__main__':
     parser.add_argument('--check', help='check monitor item', action='store_true')
     parser.add_argument('--sendtrap', help='send to zabbix server', action='store_true')
     parser.add_argument('--debug', help='set log level to debug', action='store_true')
+    parser.add_argument('--settings', help='user settings', type=str)
     args = parser.parse_args()
 
-    run(args.sendtrap, args.discover)
-
-
+    run(args)

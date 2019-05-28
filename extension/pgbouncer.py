@@ -2,19 +2,16 @@
 
 import os
 import re
-import psycopg2
-import time
 
 from logger import logger
-from zbx_query import *
 from database import database
 
 log = logger().getlogger
 
 class pgbouncer(database):
 
-    def __init__(self, host='localhost', port=6432, dbname='pgbouncer', dbuser='postgres', password='postgres'):
-        database.__init__(self, host=host, port=port, dbname=dbname, dbuser=dbuser, password=password)
+    def __init__(self, args):
+        database.__init__(self, type='pgb')
 
     def show_databases(self):
         dblist = []
@@ -36,10 +33,10 @@ class pgbouncer(database):
             database, user, cl_active, cl_waiting, sv_active, sv_idle, sv_used, sv_tested, sv_login, maxwait = row[0:10]
             if database in self.config['db_black_list'] or database not in dblist:
                 continue
-            
+
             dict['pgb.[{}.{}.cl_waiting]'.format(self.port, database)] = int(cl_waiting)
             dict['pgb.[{}.{}.cl_active]'.format(self.port, database)] = int(cl_active)
-        
+
         return dict
 
     def show_stats(self, dblist):
@@ -61,14 +58,13 @@ class pgbouncer(database):
     def info(self):
         pgbouncer_info = {}
 
-        path_prefix = self.config['unix_socket_directory']
 
         # find all instance listen port
-        for filename in os.listdir(path_prefix):
+        for filename in os.listdir(self.unix_socket_directory):
             match = re.match('^.s.PGSQL.(\d+)$', filename)
-            if match and not os.path.isfile('{}/{}.lock'.format(path_prefix, filename)):
+            if match and not os.path.isfile('{}/{}.lock'.format(self.unix_socket_directory, filename)):
                 self.port = match.group(1)
-                log.debug("find pgbouncer listen port {} unix_socket_file {}/{}".format(self.port, path_prefix, filename))
+                log.debug("find pgbouncer listen port {} unix_socket_file {}/{}".format(self.port, self.unix_socket_directory, filename))
 
                 self.dbconnect()
 
@@ -87,7 +83,7 @@ class pgbouncer(database):
         # find all instance listen port
         for filename in os.listdir(path_prefix):
             match = re.match('^.s.PGSQL.(\d+)$', filename)
-            if match and not os.path.isfile('{}/{}.lock'.format(path_prefix, filename)):
+            if match and not os.path.isfile('{}/{}.lock'.format(self.unix_socket_directory, filename)):
                 self.port = match.group(1)
 
                 self.dbconnect()
@@ -102,11 +98,5 @@ class pgbouncer(database):
                         pgbouncer_list.append(tmp)
 
                 self.disconnect()
-                
+
         return pgbouncer_list
-
-
-
-
-
-

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <zabbix_export>
-    <version>4.2</version>
-    <date>2019-05-26T09:46:07Z</date>
+    <version>4.0</version>
+    <date>2019-02-25T03:06:36Z</date>
     <groups>
         <group>
             <name>Templates</name>
@@ -35,7 +35,7 @@
                     <snmp_community/>
                     <snmp_oid/>
                     <key>pg.sendtrap[{$PG.DISCOVER.SETTINGS}]</key>
-                    <delay>10s</delay>
+                    <delay>1m</delay>
                     <history>60d</history>
                     <trends>0</trends>
                     <status>0</status>
@@ -96,7 +96,7 @@
                     <snmp_community/>
                     <snmp_oid/>
                     <key>pg.discover[{$PG.DISCOVER.SETTINGS},1]</key>
-                    <delay>15s</delay>
+                    <delay>10m</delay>
                     <status>0</status>
                     <allowed_hosts/>
                     <snmpv3_contextname/>
@@ -261,9 +261,6 @@
                     <ssl_key_password/>
                     <verify_peer>0</verify_peer>
                     <verify_host>0</verify_host>
-                    <lld_macro_paths/>
-                    <preprocessing/>
-                    <master_item/>
                 </discovery_rule>
                 <discovery_rule>
                     <name>PG discover pgcluster service</name>
@@ -271,7 +268,7 @@
                     <snmp_community/>
                     <snmp_oid/>
                     <key>pg.discover[{$PG.DISCOVER.SETTINGS},2]</key>
-                    <delay>15s</delay>
+                    <delay>10m</delay>
                     <status>0</status>
                     <allowed_hosts/>
                     <snmpv3_contextname/>
@@ -772,9 +769,6 @@
                     <ssl_key_password/>
                     <verify_peer>0</verify_peer>
                     <verify_host>0</verify_host>
-                    <lld_macro_paths/>
-                    <preprocessing/>
-                    <master_item/>
                 </discovery_rule>
                 <discovery_rule>
                     <name>PG discover pgbouncer</name>
@@ -782,7 +776,7 @@
                     <snmp_community/>
                     <snmp_oid/>
                     <key>pg.discover[{$PG.DISCOVER.SETTINGS},3]</key>
-                    <delay>15s</delay>
+                    <delay>10m</delay>
                     <status>0</status>
                     <allowed_hosts/>
                     <snmpv3_contextname/>
@@ -816,11 +810,11 @@
                     <description/>
                     <item_prototypes>
                         <item_prototype>
-                            <name>pgb.avg_query for {#PGB.DB} at {#PGB.PORT}</name>
+                            <name>pgb.avg_query for {#PGB.DB} at {#PG.PORT}</name>
                             <type>2</type>
                             <snmp_community/>
                             <snmp_oid/>
-                            <key>pgb.[{#PGB.PORT}.{#PGB.DB}.avg_query]</key>
+                            <key>pg.[{#PG.PORT}.pgb.{#PGB.DB}.avg_query]</key>
                             <delay>0</delay>
                             <history>90d</history>
                             <trends>365d</trends>
@@ -876,11 +870,11 @@
                             <master_item/>
                         </item_prototype>
                         <item_prototype>
-                            <name>pgb.avg_recv for {#PGB.DB} at {#PGB.PORT}</name>
+                            <name>pgb.avg_recv for {#PGB.DB} at {#PG.PORT}</name>
                             <type>2</type>
                             <snmp_community/>
                             <snmp_oid/>
-                            <key>pgb.[{#PGB.PORT}.{#PGB.DB}.avg_recv]</key>
+                            <key>pg.[{#PG.PORT}.pgb.{#PGB.DB}.avg_recv]</key>
                             <delay>0</delay>
                             <history>90d</history>
                             <trends>365d</trends>
@@ -936,11 +930,11 @@
                             <master_item/>
                         </item_prototype>
                         <item_prototype>
-                            <name>pgb.avg_req for {#PGB.DB} at {#PGB.PORT}</name>
+                            <name>pgb.avg_req for {#PGB.DB} at {#PG.PORT}</name>
                             <type>2</type>
                             <snmp_community/>
                             <snmp_oid/>
-                            <key>pgb.[{#PGB.PORT}.{#PGB.DB}.avg_req]</key>
+                            <key>pg.[{#PG.PORT}.pgb.{#PGB.DB}.avg_req]</key>
                             <delay>0</delay>
                             <history>90d</history>
                             <trends>365d</trends>
@@ -996,11 +990,11 @@
                             <master_item/>
                         </item_prototype>
                         <item_prototype>
-                            <name>pgb.avg_sent for {#PGB.DB} at {#PGB.PORT}</name>
+                            <name>pgb.avg_sent for {#PGB.DB} at {#PG.PORT}</name>
                             <type>2</type>
                             <snmp_community/>
                             <snmp_oid/>
-                            <key>pgb.[{#PGB.PORT}.{#PGB.DB}.avg_sent]</key>
+                            <key>pg.[{#PG.PORT}.pgb.{#PGB.DB}.avg_sent]</key>
                             <delay>0</delay>
                             <history>90d</history>
                             <trends>365d</trends>
@@ -1056,11 +1050,11 @@
                             <master_item/>
                         </item_prototype>
                         <item_prototype>
-                            <name>pgb.cl_active for  {#PGB.DB} at {#PGB.PORT}</name>
+                            <name>pgb.cl_active for  {#PGB.DB} at {#PG.PORT}</name>
                             <type>2</type>
                             <snmp_community/>
                             <snmp_oid/>
-                            <key>pgb.[{#PGB.PORT}.{#PGB.DB}.cl_active]</key>
+                            <key>pg.[{#PG.PORT}.pgb.{#PGB.DB}.cl_active]</key>
                             <delay>0</delay>
                             <history>90d</history>
                             <trends>365d</trends>
@@ -1116,11 +1110,11 @@
                             <master_item/>
                         </item_prototype>
                         <item_prototype>
-                            <name>pgb.cl_waiting for  {#PGB.DB} at {#PGB.PORT}</name>
+                            <name>pgb.cl_waiting for  {#PGB.DB} at {#PG.PORT}</name>
                             <type>2</type>
                             <snmp_community/>
                             <snmp_oid/>
-                            <key>pgb.[{#PGB.PORT}.{#PGB.DB}.cl_waiting]</key>
+                            <key>pg.[{#PG.PORT}.pgb.{#PGB.DB}.cl_waiting]</key>
                             <delay>0</delay>
                             <history>90d</history>
                             <trends>365d</trends>
@@ -1178,7 +1172,7 @@
                     </item_prototypes>
                     <trigger_prototypes>
                         <trigger_prototype>
-                            <expression>{Template PostgreSQL:pgb.[{#PGB.PORT}.{#PGB.DB}.cl_waiting].min(#3)}&gt;{$PGB.CL_WAITING_THRESHOLD}</expression>
+                            <expression>{Template PostgreSQL:pg.[{#PG.PORT}.pgb.{#PGB.DB}.cl_waiting].min(#3)}&gt;{$PGB.CL_WAITING_THRESHOLD}</expression>
                             <recovery_mode>0</recovery_mode>
                             <recovery_expression/>
                             <name>Pgbouncer cl_waiting for {#PGB.DB} on {HOST.NAME}:{#PG.PORT} [{ITEM.LASTVALUE1}/{$PGB.CL_WAITING_THRESHOLD}]</name>
@@ -1194,7 +1188,7 @@
                             <tags/>
                         </trigger_prototype>
                         <trigger_prototype>
-                            <expression>{Template PostgreSQL:pgb.[{#PGB.PORT}.{#PGB.DB}.cl_active].nodata(10m)}=1</expression>
+                            <expression>{Template PostgreSQL:pg.[{#PG.PORT}.pgb.{#PGB.DB}.cl_active].nodata(10m)}=1</expression>
                             <recovery_mode>0</recovery_mode>
                             <recovery_expression/>
                             <name>Pgbouncer on  {HOST.NAME}[{#PG.PORT}] is unreachable for more than 10 minutes</name>
@@ -1238,7 +1232,7 @@
                                     <type>0</type>
                                     <item>
                                         <host>Template PostgreSQL</host>
-                                        <key>pgb.[{#PGB.PORT}.{#PGB.DB}.avg_recv]</key>
+                                        <key>pg.[{#PG.PORT}.pgb.{#PGB.DB}.avg_recv]</key>
                                     </item>
                                 </graph_item>
                                 <graph_item>
@@ -1250,7 +1244,7 @@
                                     <type>0</type>
                                     <item>
                                         <host>Template PostgreSQL</host>
-                                        <key>pgb.[{#PGB.PORT}.{#PGB.DB}.avg_sent]</key>
+                                        <key>pg.[{#PG.PORT}.pgb.{#PGB.DB}.avg_sent]</key>
                                     </item>
                                 </graph_item>
                             </graph_items>
@@ -1275,9 +1269,6 @@
                     <ssl_key_password/>
                     <verify_peer>0</verify_peer>
                     <verify_host>0</verify_host>
-                    <lld_macro_paths/>
-                    <preprocessing/>
-                    <master_item/>
                 </discovery_rule>
                 <discovery_rule>
                     <name>PG discover common service</name>
@@ -1285,7 +1276,7 @@
                     <snmp_community/>
                     <snmp_oid/>
                     <key>pg.discover[{$PG.DISCOVER.SETTINGS}]</key>
-                    <delay>15s</delay>
+                    <delay>10m</delay>
                     <status>0</status>
                     <allowed_hosts/>
                     <snmpv3_contextname/>
@@ -1893,10 +1884,10 @@
                             <tags/>
                         </trigger_prototype>
                         <trigger_prototype>
-                            <expression>{Template PostgreSQL:pg.[{#PG.PORT}.conn.cnt].nodata(5m)}=1</expression>
+                            <expression>{Template PostgreSQL:pg.[{#PG.PORT}.conn.cnt].nodata(10m)}=1</expression>
                             <recovery_mode>0</recovery_mode>
                             <recovery_expression/>
-                            <name>PostgreSQL on  {HOST.NAME}[{#PG.PORT}] is unreachable for more than 5 minutes</name>
+                            <name>PostgreSQL on  {HOST.NAME}[{#PG.PORT}] is unreachable for more than 10 minutes</name>
                             <correlation_mode>0</correlation_mode>
                             <correlation_tag/>
                             <url/>
@@ -1904,7 +1895,7 @@
                             <priority>4</priority>
                             <description/>
                             <type>0</type>
-                            <manual_close>1</manual_close>
+                            <manual_close>0</manual_close>
                             <dependencies/>
                             <tags/>
                         </trigger_prototype>
@@ -2062,9 +2053,6 @@
                     <ssl_key_password/>
                     <verify_peer>0</verify_peer>
                     <verify_host>0</verify_host>
-                    <lld_macro_paths/>
-                    <preprocessing/>
-                    <master_item/>
                 </discovery_rule>
             </discovery_rules>
             <httptests/>
@@ -2084,7 +2072,6 @@
             </macros>
             <templates/>
             <screens/>
-            <tags/>
         </template>
     </templates>
     <triggers>

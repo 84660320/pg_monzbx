@@ -213,7 +213,7 @@ SELECT
     {% else -%}
     pg_wal_lsn_diff(pg_current_wal_lsn(), replay_lsn) as diff
     {% endif -%}
-FROM 
+FROM
     pg_stat_replication
 '''
 
@@ -228,23 +228,23 @@ SELECT
                   E'\\\\1 \\\\2', 'ig') AS master
 FROM
     regexp_split_to_table(pg_read_file('recovery.conf'), E'\\\\n') t(a)
-WHERE 
+WHERE
     a ~ '^ *primary_conninfo')
 '''
 
 def get_slow_query(db_version, secs):
-    template = Template(SLOW_QUERY_SQL)     
+    template = Template(SLOW_QUERY_SQL)
     sql = template.render(ver=db_version, sec=secs)
     return sql
 
 def get_lock_query(db_version):
-    template = Template(LOCK_SQL)     
+    template = Template(LOCK_SQL)
     sql = template.render(ver=db_version)
     return sql
 
 def get_streaming_query(db_version, isMaster=True):
     if isMaster:
-        template = Template(STREAMING_SQL)     
+        template = Template(STREAMING_SQL)
         sql = template.render(ver=db_version)
         return sql
     else:
